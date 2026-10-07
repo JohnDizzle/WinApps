@@ -14,12 +14,13 @@ internal sealed record PackagePropertyGroupsProps(IReadOnlyList<PackageConfigura
 
 internal sealed class PackagePropertyGroups : Component<PackagePropertyGroupsProps>
 {
+    private int _columnCount = 1;
     public override Element Render()
     {
         var layout = UseState("Rows");
         var activeLayout = Props.Layout ?? layout.Value;
         var width = UseState(0d);
-        var columns = width.Value >= 1100 ? 3 : width.Value >= 720 ? 2 : 1;
+        var columns = width.Value >= 1500 ? 3 : width.Value >= 1000 ? 2 : 1;
         Element Body(PackageConfigurationSection section)
         {
             var guide = Guide(section.Title);
@@ -64,9 +65,10 @@ internal sealed class PackagePropertyGroups : Component<PackagePropertyGroupsPro
                 control.Tag = "property-layout";
                 control.SizeChanged += (_, args) =>
                 {
-                    var oldColumns = width.Value >= 1100 ? 3 : width.Value >= 720 ? 2 : 1;
-                    var newColumns = args.NewSize.Width >= 1100 ? 3 : args.NewSize.Width >= 720 ? 2 : 1;
-                    if (oldColumns != newColumns) width.Set(args.NewSize.Width);
+                    var newColumns = args.NewSize.Width >= 1500 ? 3 : args.NewSize.Width >= 1000 ? 2 : 1;
+                    if (_columnCount == newColumns) return;
+                    _columnCount = newColumns;
+                    width.Set(args.NewSize.Width);
                 };
             });
     }

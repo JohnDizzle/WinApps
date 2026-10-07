@@ -9,6 +9,8 @@
     <Compile Include="../../Models/AppDataFile.cs" Link="Models/AppDataFile.cs" />
     <Compile Include="../../Models/InstalledApp.cs" Link="Models/InstalledApp.cs" />
     <Compile Include="../../Services/Storage/AppDataInspector.cs" Link="Services/AppDataInspector.cs" />
+    <Compile Include="../../Services/Storage/FootprintScanner.cs" Link="Services/FootprintScanner.cs" />
+    <Compile Include="../../Models/FolderFootprint.cs" Link="Models/FolderFootprint.cs" />
     <Compile Include="../../Services/Inventory/ApplicationLibraryCache.cs" Link="Services/ApplicationLibraryCache.cs" />
     <Compile Include="../../Models/PackageConfiguration.cs" Link="Models/PackageConfiguration.cs" />
     <Compile Include="../../Services/Packages/PackageManifestInspector.cs" Link="Services/PackageManifestInspector.cs" />

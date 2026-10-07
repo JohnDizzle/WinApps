@@ -5,18 +5,19 @@ namespace MyApps.Services.Storage;
 
 public sealed class FootprintScanner
 {
-    public IReadOnlyList<FolderFootprint> Scan(InstalledApp app)
+    public IReadOnlyList<FolderFootprint> Scan(InstalledApp app, CancellationToken cancellationToken = default)
     {
-        var results = new List<FolderFootprint> { Measure("Installed package", app.InstallPath) };
+        var results = new List<FolderFootprint> { Measure("Installed package", app.InstallPath, cancellationToken) };
         if (!string.IsNullOrWhiteSpace(app.DataPath)) foreach (var name in new[] { "Settings", "LocalState", "RoamingState", "LocalCache", "AC", "TempState" })
-            results.Add(Measure(name == "TempState" ? "TempState (temporary)" : name, Path.Combine(app.DataPath, name)));
+            results.Add(Measure(name == "TempState" ? "TempState (temporary)" : name, Path.Combine(app.DataPath, name), cancellationToken));
         if (!string.IsNullOrWhiteSpace(app.DataPath))
-            results.Add(Measure("Virtual registry", AppDataInspector.DataFolder(app.DataPath, "Registry")));
+            results.Add(Measure("Virtual registry", AppDataInspector.DataFolder(app.DataPath, "Registry"), cancellationToken));
         return results;
     }
 
-    public FolderFootprint Measure(string label, string path)
+    public FolderFootprint Measure(string label, string path, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (string.IsNullOrWhiteSpace(path)) return new(label, path, 0, 0, 0, "Location unknown");
         long bytes = 0, files = 0;
         var skipped = 0;
@@ -35,10 +36,12 @@ public sealed class FootprintScanner
 
         while (folders.TryPop(out var folder))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             try
             {
                 foreach (var entry in Directory.EnumerateFileSystemEntries(folder))
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     try
                     {
                         var attributes = File.GetAttributes(entry);

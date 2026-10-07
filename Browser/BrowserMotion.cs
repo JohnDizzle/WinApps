@@ -12,6 +12,20 @@ internal static class BrowserMotion
 {
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<FrameworkElement, object> Attached = new();
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<FrameworkElement, object> LoadingAttached = new();
+    private sealed class LayoutState { public bool Compact; }
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<FrameworkElement, LayoutState> LayoutStates = new();
+
+    public static void LayoutTransition(FrameworkElement control, bool compact)
+    {
+        if (!LayoutStates.TryGetValue(control, out var state))
+        {
+            LayoutStates.Add(control, new LayoutState { Compact = compact });
+            return;
+        }
+        if (state.Compact == compact) return;
+        state.Compact = compact;
+        Fade(control);
+    }
 
     public static void LoadingBounce(FrameworkElement control)
     {

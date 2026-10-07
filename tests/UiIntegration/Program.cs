@@ -69,6 +69,10 @@ public sealed partial class ChecksApplication : Application
             var loadingNative = reconciler.Mount(loadingDetails, () => { })!;
             Check(Descendants(loadingNative).OfType<ProgressRing>().Single().IsActive,
                 "App inspection must show an active loading indicator in the detail pane.");
+            Check(Descendants(loadingNative).OfType<Microsoft.UI.Xaml.Controls.Primitives.ToggleButton>()
+                .Where(button => Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(button).StartsWith("View "))
+                .All(button => button.IsEnabled),
+                "Section tabs must remain interactive while app inspection runs.");
             var railInventory = new AppDataInventory([], []);
             Element Rail() => Component<ApplicationRail, ApplicationRailProps>(new(railApps, app, railInventory,
                 "Package", false, _ => { }, () => { }, () => { }, _ => { }, _ => { }, _ => { })).WithKey("rail");

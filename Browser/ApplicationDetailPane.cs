@@ -15,7 +15,7 @@ internal sealed record ApplicationDetailPaneProps(InstalledApp? Selected, Folder
     AppDataInventory? Inventory, AppSettingsSnapshot? Settings, PackageConfiguration? PackageConfiguration,
     AppDataFile? File, string Preview, string View, bool Busy, string Status, Action<string> OnView,
     Action OnMeasure, Action<string> OnOpenFolder, Action<AppDataFile> OnOpenFile, Action<AppDataFile> OnPreviewFile,
-    bool Loading = false);
+    bool Loading = false, bool Compact = false, Action? OnReloadApplication = null);
 
 internal sealed class ApplicationDetailPane : Component<ApplicationDetailPaneProps>
 {
@@ -24,12 +24,13 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
     public override Element Render()
     {
         var selected = Props.Selected;
+        var padding = Props.Compact ? 12 : 24;
         var layout = UseState("Rows");
         var resourceStatus = UseState("");
         var resourceVersion = UseState(0);
         void ReloadResources()
         {
-            try { UiResources.Reload(); resourceVersion.Set(resourceVersion.Value + 1); resourceStatus.Set("Resources reloaded."); }
+            try { UiResources.Reload(); resourceVersion.Set(resourceVersion.Value + 1); resourceStatus.Set("Resources reloaded."); Props.OnReloadApplication?.Invoke(); }
             catch (Exception error) { resourceStatus.Set($"Resources were not changed: {error.Message}"); }
         }
         ButtonElement DocumentationLink(string key)
@@ -144,14 +145,14 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                     Text($"{files.Length} files · {files.Sum(item => item.Bytes) / 1048576d:N2} MiB listed"),
                     FlexRow(TextBlock("File").SemiBold().Flex(grow: 1, basis: 0),
                         TextBlock("Size · Type · Modified").SemiBold().Width(260).Margin(left: 12).Flex(shrink: 0),
-                        TextBlock("Open").Width(40).Margin(left: 8).Flex(shrink: 0)).Padding(8),
-                    VStack(6, files.Select(item => FlexRow(
+                        TextBlock("Open").Width(40).Margin(left: 8).Flex(shrink: 0)).Padding(8).IsVisible(!Props.Compact),
+                    VStack(6, files.Select(item => ((Props.Compact ? FlexColumn() : FlexRow()) with { Children = new Element[] {
                         FilePreviewButton(item).Flex(grow: 1, basis: 0),
                         VStack(2, Text($"{item.Bytes:N0} bytes · {item.Kind}"),
                             TextBlock(item.LastWriteUtc.ToLocalTime().ToString("g")).FontSize(12).Foreground(Theme.SecondaryText))
-                            .Width(260).Margin(left: 12).Flex(shrink: 0),
+                            .Width(Props.Compact ? double.NaN : 260).Margin(left: Props.Compact ? 0 : 12).Flex(shrink: 0),
                         OpenFileButton(item).Margin(left: 8).Flex(shrink: 0)
-                    ).HAlign(HorizontalAlignment.Stretch).WithKey(item.FullPath)).ToArray()),
+                    } }).HAlign(HorizontalAlignment.Stretch).Padding(8).Background(Theme.LayerFill).CornerRadius(8).WithKey(item.FullPath)).ToArray()),
                     VStack(4, (inventory?.Notices ?? Array.Empty<string>()).Select((notice, index) => Text(notice).WithKey($"notice-{index}")).ToArray()),
                     Slot("file-details", file is not null && file.Area == area ? Section("File details", Text(file.FullPath),
                         Text($"Modified: {file.LastWriteUtc.ToLocalTime():g} · {file.Bytes:N0} bytes · {file.Kind}"),
@@ -171,11 +172,19 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
         return
                 FlexColumn(
                     Card(VStack(12,
-                    HStack(8, new[] { "Overview", "Package", "Storage", "Settings", "Registry", "LocalState" }.Select(tab =>
+                    ScrollView(HStack(8, new[] { "Overview", "Package", "Storage", "Settings", "Registry", "LocalState" }.Select(tab =>
                         ToggleButton(tab, view == tab, enabled => { if (enabled) { Props.OnView(tab); BackToTop(); } })
                             .Set(BrowserMotion.Enable).CornerRadius(9).Padding(14)
-                            .AutomationName($"View {tab}").IsEnabled(selected is not null && !busy).WithKey(tab)).ToArray()),
-                    FlexRow(
+                            .AutomationName($"View {tab}").IsEnabled(selected is not null).WithKey(tab)).ToArray()))
+                        .Set(control =>
+                        {
+                            control.ContentOrientation = Microsoft.UI.Xaml.Controls.ScrollingContentOrientation.Horizontal;
+                            control.HorizontalScrollMode = Microsoft.UI.Xaml.Controls.ScrollingScrollMode.Enabled;
+                            control.HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollingScrollBarVisibility.Auto;
+                            control.VerticalScrollMode = Microsoft.UI.Xaml.Controls.ScrollingScrollMode.Disabled;
+                            control.VerticalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollingScrollBarVisibility.Hidden;
+                        }),
+                    VStack(8,
                         TextBlock(selected?.Name ?? "Your library").SemiBold().TextWrapping().Flex(grow: 1, basis: 0),
                         ActionButton("Reload resources", ReloadResources).Margin(right: 8)
                             .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, UiResources.FilePath)),
@@ -184,7 +193,7 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                             .Background(Theme.LayerFill).WithBorder(Theme.CardStroke)),
                     Text(resourceStatus.Value).IsVisible(resourceStatus.Value.Length > 0)
                     ).Padding(16)).Background(Theme.CardBackground).WithBorder(Theme.CardStroke).CornerRadius(12)
-                        .Margin(left: 28, top: 16, right: 28).Flex(shrink: 0),
+                        .Margin(left: padding, top: 12, right: padding).Flex(shrink: 0),
                 ScrollView(VStack(20,
                     Card(VStack(16,
                         HStack(16, Slot("heading-icon", selected is null ? Icon(FontIcon("\uE71D", "Segoe Fluent Icons")).Width(48).Height(48) : AppIcon(selected, 48)),
@@ -197,10 +206,10 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                         Slot("launch-actions", selected is not null ? Component<ApplicationLaunchActions, ApplicationLaunchActionsProps>(new(selected, packageConfiguration))
                             .WithKey(selected.FullName) : Text(""))
                             .IsEnabled(!Props.Loading).IsVisible(selected is not null && !string.IsNullOrWhiteSpace(selected.FamilyName)))
-                        .Padding(24)).Background(Theme.CardBackground).WithBorder(Theme.CardStroke).CornerRadius(12),
+                        .Padding(padding)).Background(Theme.CardBackground).WithBorder(Theme.CardStroke).CornerRadius(12),
                     TextBlock(status).TextWrapping().FontSize(12).Foreground(Theme.SecondaryText).Margin(left: 4),
                     content.WithKey($"content-{selected?.FullName ?? "library"}-{view}-{resourceVersion.Value}")
-                ).Set(BrowserMotion.Enable).Padding(28)).Set(control => _contentScroll = control).Flex(grow: 1, basis: 0)).Flex(grow: 1, basis: 0);
+                ).Padding(padding)).Set(control => _contentScroll = control).MinWidth(0).Flex(grow: 1, basis: 0)).MinWidth(0).Flex(grow: 1, basis: 0);
     }
 
     private static void OpenDocumentation(string url) =>

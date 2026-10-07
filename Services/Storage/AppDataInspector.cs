@@ -11,8 +11,9 @@ public sealed class AppDataInspector
 {
     public const int MaxFiles = 2000;
     public const int MaxPreviewBytes = 65536;
-    public AppDataInventory Inspect(InstalledApp app)
+    public AppDataInventory Inspect(InstalledApp app, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var files = new List<AppDataFile>();
         var notices = new List<string>();
         if (string.IsNullOrWhiteSpace(app.DataPath))
@@ -41,12 +42,14 @@ public sealed class AppDataInspector
             pending.Push(root);
             while (pending.TryPop(out var folder))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 try
                 {
                     if (ContainsLink(folder))
                     { notices.Add($"Link skipped: {folder}"); continue; }
                     foreach (var path in Directory.EnumerateFileSystemEntries(folder))
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
                         try
                         {
                             var attrs = File.GetAttributes(path);

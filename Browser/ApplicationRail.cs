@@ -11,7 +11,7 @@ namespace MyApps.Browser;
 
 internal sealed record ApplicationRailProps(InstalledApp[] Apps, InstalledApp? Selected, AppDataInventory? Inventory,
     string View, bool Busy, Action<InstalledApp> OnSelect, Action OnUnselect, Action OnRefresh,
-    Action<AppDataFile> OnPreviewFile, Action<AppDataFile> OnOpenFile, Action<string> OnView, bool Loading = false);
+    Action<AppDataFile> OnPreviewFile, Action<AppDataFile> OnOpenFile, Action<string> OnView, bool Loading = false, bool Compact = false);
 
 internal sealed class ApplicationRail : Component<ApplicationRailProps>
 {
@@ -29,9 +29,13 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
         UseEffect(() =>
         {
             appsListOpen.Set(Props.Selected is null);
-            appFilesOpen.Set(Props.Selected is not null);
+            appFilesOpen.Set(Props.Selected is not null && Props.Inventory is not null);
             expandedAreas.Set(Array.Empty<string>());
         }, Props.Selected?.FullName);
+        UseEffect(() =>
+        {
+            if (Props.Selected is not null && Props.Inventory is not null) appFilesOpen.Set(true);
+        }, Props.Selected?.FullName, Props.Inventory is not null);
         void Select(AppTreeNode node) { if (node.App is not null) Props.OnSelect(node.App); }
         void Unselect() => Props.OnUnselect();
         void Scan() { letter.Set("All"); search.Set(""); appsListOpen.Set(true); appFilesOpen.Set(false); Props.OnRefresh(); }
@@ -50,12 +54,20 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
         var visibleApps = matches.Where(app => letter.Value == "All" || Initial(app) == letter.Value)
             .OrderBy(app => app.Name, StringComparer.OrdinalIgnoreCase).ToArray();
         var letters = new[] { "All", "#" }.Concat(Enumerable.Range('A', 26).Select(code => ((char)code).ToString())).ToArray();
-        var keyboard = VStack(6, letters.Chunk(4).Select((row, index) => HStack(6, row.Select(key =>
+        var keyboard = ScrollView(VStack(6, letters.Chunk(4).Select((row, index) => HStack(6, row.Select(key =>
             ToggleButton(key, letter.Value == key, enabled => { if (enabled) letter.Set(key); })
                 .Width(64).Height(40).Padding(0).AutomationName($"Show {key} applications")
                 .CornerRadius(8)
                 .IsEnabled(key == "All" || matches.Any(app => Initial(app) == key)).WithKey(key)).ToArray())
-                .WithKey($"letters-{index}")).ToArray());
+                .WithKey($"letters-{index}")).ToArray()).Width(274))
+            .Set(control =>
+            {
+                control.ContentOrientation = Microsoft.UI.Xaml.Controls.ScrollingContentOrientation.Horizontal;
+                control.HorizontalScrollMode = Microsoft.UI.Xaml.Controls.ScrollingScrollMode.Enabled;
+                control.HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollingScrollBarVisibility.Auto;
+                control.VerticalScrollMode = Microsoft.UI.Xaml.Controls.ScrollingScrollMode.Disabled;
+                control.VerticalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollingScrollBarVisibility.Hidden;
+            });
         var dataFileTree = inventory is null ? Text(busy || Props.Loading ? "Loading application files…" : "Application files are unavailable.")
             : VStack(8, new[] { "Settings", "Registry", "LocalState" }.Select(area => Disclosure(area,
                 VStack(4, inventory.Files.Any(item => item.Area == area)
@@ -88,8 +100,12 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                 AppIcon(app).Margin(right: 12).Flex(shrink: 0),
                 VStack(3, TextBlock(app.Name).SemiBold().TextWrapping(),
                     TextBlock(app.Source == "MSIX" ? "Packaged app" : "Desktop app").FontSize(12).Foreground(Theme.SecondaryText)).Flex(grow: 1, basis: 0)),
-            Slot("app-files", app.FullName == selected?.FullName
-                ? Disclosure("App files", fileTree, appFilesOpen.Value, expanded =>
+            Slot("app-files", !Props.Compact && app.FullName == selected?.FullName
+                ? Props.Loading ? HStack(8,
+                    ProgressRing().Width(20).Height(20).Set(control => { control.IsActive = true; control.IsIndeterminate = true; })
+                        .AutomationName($"Loading files for {app.Name}"),
+                    Text("Loading app files…"))
+                : Disclosure("App files", fileTree, appFilesOpen.Value, expanded =>
                     { appFilesOpen.Set(expanded); if (expanded) appsListOpen.Set(false); })
                     .AutomationName($"Files for {app.Name}")
                 : Text(""))
@@ -129,8 +145,16 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                 appList.Flex(grow: 1, basis: 0)
             ) with { RowGap = 14 }).FlexPadding(24)
         ).Background(Theme.LayerFill).WithBorder(Theme.CardStroke).CornerRadius(12)
-            .Width(360).Margin(left: 16, top: 12, right: 0, bottom: 16).Flex(shrink: 0);
+            .Width(400).Margin(left: 16, top: 12, right: 0, bottom: 16).Flex(shrink: 0);
 
+        if (Props.Compact)
+            return Border(VStack(8,
+                TextBlock("Applications").SemiBold(),
+                TextBox(search.Value, search.Set, placeholderText: "Search your library").AutomationName("Search applications"),
+                Disclosure(selected?.Name ?? "Choose an application", appList.Height(160), appsListOpen.Value,
+                    expanded => appsListOpen.Set(expanded)).AutomationName("Choose application")))
+                .Padding(12).Background(Theme.LayerFill).WithBorder(Theme.CardStroke).CornerRadius(12)
+                .Margin(12).Flex(shrink: 0);
         return navigation;
     }
 }

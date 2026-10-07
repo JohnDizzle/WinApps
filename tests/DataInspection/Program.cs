@@ -34,6 +34,17 @@ string Preview(string name, string content, Encoding? encoding = null)
 
 try
 {
+    using var canceled = new CancellationTokenSource();
+    canceled.Cancel();
+    var cancellationApp = new InstalledApp("Canceled", "family", "family!App", "Publisher", "1", root, root);
+    var inspectionCanceled = false;
+    try { inspector.Inspect(cancellationApp, canceled.Token); }
+    catch (OperationCanceledException) { inspectionCanceled = true; }
+    Check(inspectionCanceled, "Canceled inventory must stop before reading files");
+    var measurementCanceled = false;
+    try { new FootprintScanner().Scan(cancellationApp, canceled.Token); }
+    catch (OperationCanceledException) { measurementCanceled = true; }
+    Check(measurementCanceled, "Canceled storage measurement must stop before reading files");
     var location = new SettingLocation("LocalSettings", ["Nested/Name"], "MainWindowHeight");
     var height = new AppSetting("LocalSettings/Nested/Name", "MainWindowHeight", "Int32", "1048", location);
     var settingsMap = new Dictionary<string, object> { [height.Name] = 1048, ["Sibling"] = "untouched" };
