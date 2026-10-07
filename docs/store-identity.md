@@ -1,6 +1,6 @@
 # WinApps Store identity
 
-These values were supplied by the maintainer's Partner Center product identity screenshot. They are identifiers, not signing credentials. The current project runs unpackaged (`WindowsPackageType=None`); these values are recorded for future MSIX packaging and Store association.
+These values were supplied by the maintainer's Partner Center product identity screenshot. They are identifiers, not signing credentials. The project uses single-project MSIX (`WindowsPackageType=MSIX`, `EnableMsixTooling=true`). `Package.appxmanifest` now declares this Store identity, and `scripts/Build-Msix.ps1` builds the self-contained Release package.
 
 | Field | Value |
 | --- | --- |
@@ -13,6 +13,10 @@ These values were supplied by the maintainer's Partner Center product identity s
 | Store URL | <https://apps.microsoft.com/detail/9NWZ6MZV4BVN> |
 | Store protocol link | `ms-windows-store://pdp/?productid=9NWZ6MZV4BVN` |
 
-The recorded Store link does not establish that a release is published or available. Confirm the identity in Partner Center when preparing a submission. Package version, architecture, application Id, capabilities, executable path, and signing/distribution configuration still need to be specified by that packaging work.
+The recorded Store link does not establish that a release is published or available. Confirm the identity in Partner Center when preparing a submission. The manifest defaults to version `1.0.0.0`, x64, application Id `App`, executable `MyApps.exe`, and the desktop `runFullTrust` capability. The packaging script supports x64 and ARM64 and overrides version/architecture for each build. ARM64 runtime behavior remains unverified.
 
 Package family name and SID are derived identities; they are not additional `Identity` manifest attributes. No MSA client ID is configured because the app currently has no Microsoft-account authentication feature.
+
+Signing uses an existing code-signing certificate in `Cert:\CurrentUser\My` whose subject exactly matches the Store publisher, has a private key, and is currently valid. Pass `-CertificateThumbprint` to select it explicitly; otherwise the script prefers an already trusted matching certificate, then the latest expiry. It does not export the private key or change certificate trust. Use `-Unsigned` to prepare a package for Store signing; this does not submit or publish it.
+
+For Visual Studio signing, copy `WinApps.Signing.props.example` to `WinApps.Signing.props` and set the existing certificate thumbprint. The local file is ignored by Git; the private key stays in the certificate store.

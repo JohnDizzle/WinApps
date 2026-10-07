@@ -1,11 +1,11 @@
 {
   "profiles": {
     "WinApps": {
-      "commandName": "Project",
+      "commandName": "MsixPackage",
       "nativeDebugging": false
     },
     "WinApps Devtools": {
-      "commandName": "Project",
+      "commandName": "MsixPackage",
       "commandLineArgs": "--devtools",
       "nativeDebugging": false
     }

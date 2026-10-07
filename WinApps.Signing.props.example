@@ -1,0 +1,7 @@
+<!-- Copy to WinApps.Signing.props (ignored by Git) and insert an existing certificate thumbprint. -->
+<Project>
+  <PropertyGroup Condition="'$(WindowsPackageType)' == 'MSIX'">
+    <PackageCertificateThumbprint>YOUR_CERTIFICATE_THUMBPRINT</PackageCertificateThumbprint>
+    <AppxPackageSigningEnabled>true</AppxPackageSigningEnabled>
+  </PropertyGroup>
+</Project>

@@ -13,3 +13,5 @@ artifacts/
 *.pfx
 *.p12
 *.snk
+
+WinApps.Signing.props

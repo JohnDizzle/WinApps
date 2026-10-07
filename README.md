@@ -5,7 +5,7 @@
 
 WinApps lets you browse installed Windows applications, inspect their package configuration and local files, edit supported settings, and launch packaged apps.
 
-WinApps is in active development.
+WinApps is in active development. Release builds are self-contained, including both the .NET and Windows App SDK runtimes. See [the release procedure](docs/releasing.md) for portable publishing and Store-identity MSIX packaging.
 
 ## Features
 
@@ -22,13 +22,13 @@ WinApps is in active development.
 
 ## Build and run
 
-Building from source requires Windows, a stable .NET 10 SDK, and NuGet access.
+Building from source requires Windows, a stable .NET 10 SDK, and NuGet access. Visual Studio uses the MSIX launch profiles and root `Package.appxmanifest`; the command below runs the portable development variant.
 
 ```powershell
 git clone https://github.com/JohnDizzle/WinApps.git
 cd WinApps
 dotnet restore MyApps.csproj
-dotnet run --project MyApps.csproj
+dotnet run --project MyApps.csproj -p:WindowsPackageType=None
 ```
 
 Run the portable checks with:
