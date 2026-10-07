@@ -3,9 +3,9 @@
 [![CI](https://github.com/JohnDizzle/WinApps/actions/workflows/ci.yml/badge.svg)](https://github.com/JohnDizzle/WinApps/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
-A Windows application browser built with WinUI 3 and Microsoft.UI.Reactor. Explore installed apps, MSIX configuration, package resources, stored settings, and local files.
+WinApps lets you browse installed Windows applications, inspect their package configuration and local files, edit supported settings, and launch packaged apps.
 
-WinApps is in active development. The project files, executable, namespace, and local cache currently retain the `MyApps` name.
+WinApps is in active development.
 
 ## Features
 
@@ -19,7 +19,7 @@ WinApps is in active development. The project files, executable, namespace, and 
 
 ## Build and run
 
-Requires Windows, a stable .NET 10 SDK, and NuGet access. The UI uses a preview Reactor dependency.
+Building from source requires Windows, a stable .NET 10 SDK, and NuGet access.
 
 ```powershell
 git clone https://github.com/JohnDizzle/WinApps.git

@@ -43,7 +43,7 @@ Installed-package checks are optional local integration checks:
 dotnet run --project tests/PackageIntegration/PackageIntegration.csproj
 ```
 
-They inspect AppControl Manager and WinUI 3 Gallery when installed; other exact package names may be supplied after `--`. They do not launch applications or modify package settings. CI runs the portable inspection checks and builds the Windows app; hosted runners cannot assume those applications are installed.
+Pass the exact identity names of locally installed packages after `--` to choose integration fixtures. These checks read package configuration without launching applications or changing settings. CI runs the portable inspection checks and builds WinApps; hosted runners cannot assume fixture packages are installed.
 
 For UI changes, verify light/dark themes, alphabet button sizing, file expander widths, keyboard navigation, and setting edit focus. Include screenshots with personal information removed. For save-path changes, test exact stored types, overflow, stale snapshots, sibling preservation, and unsupported read-only values.
 

@@ -18,7 +18,6 @@ Applications appear in an alphabetical tree under Packaged apps and Desktop apps
 
 The detail pane provides Overview, Storage, Settings, and LocalState sections. Selecting an application inventories accessible files under its package Settings and LocalState directories, including nested paths, logical file sizes, modification timestamps, and format hints. Selecting a supported text file loads a read-only preview capped at 64 KiB. settings.dat is identified as a binary Windows settings store; decoded settings are read through Windows ApplicationData; database queries are not implemented. Inventory is capped at 2,000 files and reports unavailable paths. Filesystem links are skipped. Desktop apps still require adapters to identify persistent data locations.
 
-
 ## Decoded Windows settings
 
 Selecting an application loads LocalSettings and RoamingSettings using Windows.Management.Core.ApplicationDataManager.CreateForPackageFamily for the current Windows user. Nested containers and composite values are shown with their stored types and values. Access failures appear in the Settings view.
@@ -27,7 +26,7 @@ Existing scalar settings show their stored type and an explicit Save button, ena
 
 The selected application's list row contains an App files expander with Settings and LocalState file nodes. Selecting an app collapses Open Apps List (the alphabet filter) and expands its file browser. Opening either expander collapses the other to keep navigation compact. Refreshing the library restores the alphabet filter. File rows provide both read-only inspection and Open with default app, which launches the Windows file association; the external application may allow editing. Missing files or association failures are reported in the status message.
 
-One theme button lives in the title bar: the sun switches to light and the moon switches to dark. Startup follows the system theme until toggled. Rounded controls and layered surfaces follow the Linkscape styling approach while retaining Windows theme resources and native interaction states.
+One theme button lives in the title bar: the sun switches to light and the moon switches to dark. Startup follows the system theme until toggled. Controls use rounded surfaces, Windows theme colors, and native interaction states.
 
 ## MSIX package configuration
 
@@ -35,14 +34,10 @@ Selecting a packaged app reads its installed AppxManifest.xml and current-user W
 
 RuntimeBehavior and TrustLevel are shown separately. Legacy EntryPoint combinations are labeled as inferred; missing declarations or an unmatched application Id remain unknown. WinUI 3 is not established by MSIX packaging or a Windows App SDK dependency alone. Capabilities are declarations, not granted permissions, and extension activation may override application defaults. Runtime process tokens and binary framework usage are not inspected. Configuration is read live on selection; it is not stored in the library cache.
 
-Classification references: [Application activation and trust schema](https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/element-f-application), [MSIX AppContainer](https://learn.microsoft.com/en-us/windows/msix/msix-container), and [Windows App SDK deployment architecture](https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/deployment-architecture).
-
 The Package view also correlates installed resource packages through the current-user Windows package-family query with the Resource type filter. Resource packs remain beneath their parent application's configuration rather than becoming independent application rows. Each pack shows its resource Id, full identity, version, architecture, publisher, signature kind, package health, installation path, and whether its version matches the selected library entry. Its own installed AppxManifest.xml is inspected with the same bounds and read-only protections as the main manifest; language/scale declarations, other sections, and the complete source are available. Missing manifests and discovery failures are reported independently so that accessible main/resource results remain visible. Resource-only manifests do not require an Application element. Inspection is capped at 128 resource packages, with a notice when limited. These are installed same-family relationships, not a determination of active resource selection or packs available for download.
-
-See [Microsoft resource package documentation](https://learn.microsoft.com/en-us/windows/msix/package/resource-package) and [AppControl Manager's resource-pack build example](https://github.com/HotCakeX/Harden-Windows-Security/wiki/AppControl-Manager). Installed package inspection can be verified with `dotnet run --project tests/PackageIntegration/PackageIntegration.csproj`; it checks AppControl Manager and WinUI 3 Gallery if installed. Pass other exact package names after `--` to check those applications instead.
 
 Selecting Settings/settings.dat refreshes the live decoded package settings. This does not parse arbitrary offline .dat files: LocalState .dat files can use application-specific formats. Their file information remains available, and supported text files have read-only previews.
 
-Start Menu discovery adapts the WebDive InstalledApps approach: read current-user and shared Programs shortcuts through WScript.Shell COM, extract the shortcut icon or fall back to its executable icon, and merge with registry metadata. Packaged applications are listed per AppListEntry with their own logos. COM objects and native icon handles are released after use.
+WinApps discovers desktop applications from registered installations and Start Menu shortcuts. Packaged applications appear with their own names and icons.
 
-The selected packaged application has a Launch action beside its heading. Normal launch uses its exact registered AppListEntry identity. A Launch elevated action appears for desktop/mediumIL application declarations when the package declares the restricted allowElevation capability. On click, the installed manifest and current-user registration are read again, the declared executable path must stay inside the package and contain no filesystem links, and Windows requests elevation through its normal UAC flow. Launch messages have independent component state. Desktop registrations without a package activation identity currently have a disabled Launch action.
+Use Launch beside the selected application's heading to open a registered packaged app. Launch elevated appears when its package declares supported elevation; Windows then requests administrator approval. Launch is unavailable for desktop entries without a known package activation identity.
