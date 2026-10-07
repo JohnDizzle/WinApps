@@ -3,6 +3,7 @@
     <!-- <snippet:template-shape> -->
     <PropertyGroup>
         <OutputType>WinExe</OutputType>
+        <ApplicationIcon>Assets/WinApps.ico</ApplicationIcon>
         <Title>WinApps</Title>
         <Product>WinApps</Product>
         <Description>Windows application browser with MSIX and settings inspection.</Description>
@@ -49,6 +50,8 @@
     <!-- </snippet:template-shape> -->
 
     <ItemGroup>
+        <EmbeddedResource Include="Resources/ui-resources.json" LogicalName="WinApps.UiResources" />
+        <None Update="Resources/ui-resources.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
         <Compile Remove="tests/**/*.cs" />
         <Page Remove="tests/**" />
         <ApplicationDefinition Remove="tests/**" />
@@ -74,6 +77,4 @@
     </ItemGroup>
 
 </Project>
-
-
 

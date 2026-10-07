@@ -32,9 +32,7 @@ internal sealed class ApplicationLaunchActions : Component<ApplicationLaunchActi
                         .Set(control =>
                         {
                             Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Manifest declares allowElevation. Windows will request administrator approval.");
-                        }).WithKey("elevated-launch"),
-                Component<ApplicationManagementPanel, ApplicationManagementPanelProps>(new(Props.App))
-                    .WithKey($"management-{Props.App.FullName}")),
-            Text(message.Value));
+                        }).WithKey("elevated-launch")),
+            Text(message.Value).IsVisible(message.Value.Length > 0));
     }
 }

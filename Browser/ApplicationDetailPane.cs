@@ -14,13 +14,33 @@ namespace MyApps.Browser;
 internal sealed record ApplicationDetailPaneProps(InstalledApp? Selected, FolderFootprint[] Footprint,
     AppDataInventory? Inventory, AppSettingsSnapshot? Settings, PackageConfiguration? PackageConfiguration,
     AppDataFile? File, string Preview, string View, bool Busy, string Status, Action<string> OnView,
-    Action OnMeasure, Action<string> OnOpenFolder, Action<AppDataFile> OnOpenFile, Action<AppDataFile> OnPreviewFile);
+    Action OnMeasure, Action<string> OnOpenFolder, Action<AppDataFile> OnOpenFile, Action<AppDataFile> OnPreviewFile,
+    bool Loading = false);
 
 internal sealed class ApplicationDetailPane : Component<ApplicationDetailPaneProps>
 {
+    private Microsoft.UI.Xaml.Controls.ScrollView? _contentScroll;
+
     public override Element Render()
     {
         var selected = Props.Selected;
+        var layout = UseState("Rows");
+        var resourceStatus = UseState("");
+        var resourceVersion = UseState(0);
+        void ReloadResources()
+        {
+            try { UiResources.Reload(); resourceVersion.Set(resourceVersion.Value + 1); resourceStatus.Set("Resources reloaded."); }
+            catch (Exception error) { resourceStatus.Set($"Resources were not changed: {error.Message}"); }
+        }
+        ButtonElement DocumentationLink(string key)
+        {
+            var link = UiResources.Current.Links[key];
+            return ActionButton(link.Label, () => OpenDocumentation(link.Url));
+        }
+        void BackToTop() => _contentScroll?.ScrollTo(0, 0, new Microsoft.UI.Xaml.Controls.ScrollingScrollOptions(
+            new Windows.UI.ViewManagement.UISettings().AnimationsEnabled
+                ? Microsoft.UI.Xaml.Controls.ScrollingAnimationMode.Enabled : Microsoft.UI.Xaml.Controls.ScrollingAnimationMode.Disabled,
+            Microsoft.UI.Xaml.Controls.ScrollingSnapPointsMode.Ignore));
         var footprint = Props.Footprint;
         var inventory = Props.Inventory;
         var settings = Props.Settings;
@@ -40,9 +60,12 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
         if (selected is not null)
         {
             if (view == "Overview")
-                content = Section("About this application", Text($"Version: {selected.Version}"), Text($"Publisher: {selected.Publisher}"),
-                    Text($"Source: {selected.Source}"), Text($"Identity: {selected.FullName}"),
-                    string.IsNullOrWhiteSpace(selected.FamilyName) ? Text("Desktop application registration") : Section("MSIX configuration",
+                content = VStack(16, Section("Application information",
+                    DetailRow("Version", selected.Version), DetailRow("Publisher", selected.Publisher),
+                    DetailRow("Source", selected.Source),
+                    Disclosure("Application identity", ReadOnlyText(selected.FullName, "Application identity"))),
+                    string.IsNullOrWhiteSpace(selected.FamilyName) ? Section("Desktop application",
+                        Text("This entry comes from desktop registration or a Start menu shortcut. Windows app repair and reset options may not be available.")) : Section("Package information",
                         Text($"Application type: {packageConfiguration?.ApplicationType ?? "Loading…"}"),
                         Text($"Trust / AppContainer: {packageConfiguration?.TrustLevel ?? "Loading…"}"),
                         Text($"UI framework: {packageConfiguration?.UiFramework ?? "Loading…"}"),
@@ -50,9 +73,10 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                             ? $"Related resource packages: {packageConfiguration.ResourcePackages?.Count ?? 0} installed for this user"
                             : "Related resource packages: discovery unavailable or still loading"),
                         ActionButton("View package manifest and configuration", () => setView("Package")).IsEnabled(!busy)),
-                    Text($"Installed location: {(string.IsNullOrEmpty(selected.InstallPath) ? "Unknown" : selected.InstallPath)}"),
+                    Section("Files and locations",
+                    DetailRow("Installed folder", selected.InstallPath),
                     ActionButton("Open installed folder", () => OpenFolder(selected.InstallPath)).IsEnabled(!string.IsNullOrEmpty(selected.InstallPath)),
-                    Text(string.IsNullOrEmpty(selected.DataPath) ? "Persistent data locations require an app-specific adapter." : $"Package data: {selected.DataPath}"));
+                    DetailRow("App data folder", string.IsNullOrEmpty(selected.DataPath) ? "No app data folder identified" : selected.DataPath)));
             else if (view == "Package")
                 content = Section("MSIX package · configuration and manifest",
                     Text(packageConfiguration?.ManifestPath ?? "Loading package configuration…"),
@@ -70,28 +94,32 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                                 ReadOnlyText(resource.Registration, $"Resource package {resource.ResourceId} registration"),
                                 Text(resource.ManifestPath),
                                 VStack(4, resource.Notices.Select((notice, index) => Text(notice).WithKey($"resource-notice-{index}")).ToArray()),
-                                VStack(8, resource.Sections.Select((section, index) => Disclosure(section.Title,
-                                    ReadOnlyText(section.Details, $"{resource.ResourceId} {section.Title}"),
-                                    isExpanded: section.Title == "Resources and languages").WithKey($"resource-section-{index}")).ToArray()),
-                                Disclosure("Complete resource manifest · read only", ReadOnlyText(resource.Manifest, $"Complete manifest for {resource.ResourceId}")),
+                                Component<PackagePropertyGroups, PackagePropertyGroupsProps>(new(resource.Sections, layout.Value))
+                                    .WithKey($"resource-properties-{resource.FullName}"),
+                                Disclosure("Complete resource manifest · read only", MarkdownContent.Code(resource.Manifest, "xml", $"Complete manifest for {resource.ResourceId}")),
                                 ActionButton("Open installed resource folder", () => OpenFolder(resource.InstallPath)).IsEnabled(!busy),
                                 ActionButton("Open resource manifest with default app", () =>
                                     OpenFile(new AppDataFile("Package", "AppxManifest.xml", resource.ManifestPath, 0, DateTime.MinValue, "Resource package manifest")))
                                     .IsEnabled(!busy && resource.Manifest.Length > 0)
                             )).WithKey(resource.FullName)).ToArray())),
-                    VStack(10, (packageConfiguration?.Sections ?? Array.Empty<PackageConfigurationSection>()).Select((section, index) =>
-                        Disclosure(section.Title,
-                            ReadOnlyText(section.Details, section.Title), isExpanded: section.Title == "Selected application")
-                            .WithKey($"package-section-{index}")).ToArray()),
+                    HStack(8, new[] { "Grid", "Rows", "Widgets" }.Select(option =>
+                        ToggleButton(UiResources.LayoutLabel(option),
+                            layout.Value == option, enabled => { if (enabled) layout.Set(option); })
+                            .Set(BrowserMotion.Enable).Padding(14).CornerRadius(9)
+                            .AutomationName($"Package layout {option}").WithKey(option)).ToArray()).Margin(top: 12, bottom: 12),
+                    Section("Packaging and UI frameworks",
+                        Text("MSIX describes packaging. WinUI 3, UWP, WPF, and Windows Forms describe app technologies. Manifest declarations and dependencies do not always establish the UI framework."),
+                        DocumentationLink("Msix"), DocumentationLink("WinUI3"), DocumentationLink("Frameworks")),
+                    Component<PackagePropertyGroups, PackagePropertyGroupsProps>(new(packageConfiguration?.Sections ?? [], layout.Value))
+                        .WithKey($"package-properties-{selected.FullName}"),
                     Disclosure("Complete manifest · read only",
-                        ReadOnlyText(packageConfiguration?.Manifest ?? "", "Complete package manifest")),
+                        MarkdownContent.Code(packageConfiguration?.Manifest ?? "", "xml", "Complete package manifest")),
                     ActionButton("Open manifest with default app", () =>
                     {
                         if (packageConfiguration is { ManifestPath.Length: > 0 } config)
                             OpenFile(new AppDataFile("Package", "AppxManifest.xml", config.ManifestPath, 0, DateTime.MinValue, "Package manifest"));
                     }).IsEnabled(!busy && packageConfiguration?.Manifest.Length > 0),
-                    ActionButton("Microsoft Learn · application runtime and trust", () =>
-                        Process.Start(new ProcessStartInfo("https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/element-f-application") { UseShellExecute = true })));
+                    DocumentationLink("Runtime"));
             else if (view == "Storage")
                 content = Section("Storage footprint", Text(selected.EstimatedSizeKiB is long size ? $"Installer estimate: {size / 1024d:N2} MiB" : "No installer estimate available."),
                     ActionButton("Measure accessible files", Measure).IsEnabled(!busy),
@@ -114,8 +142,14 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                     area == "Settings" ? Component<PackageSettingsPanel, PackageSettingsPanelProps>(
                         new(selected.FamilyName, settings, busy)).WithKey($"settings-{selected.FamilyName}") : Text($"{area} file inventory"),
                     Text($"{files.Length} files · {files.Sum(item => item.Bytes) / 1048576d:N2} MiB listed"),
+                    FlexRow(TextBlock("File").SemiBold().Flex(grow: 1, basis: 0),
+                        TextBlock("Size · Type · Modified").SemiBold().Width(260).Margin(left: 12).Flex(shrink: 0),
+                        TextBlock("Open").Width(40).Margin(left: 8).Flex(shrink: 0)).Padding(8),
                     VStack(6, files.Select(item => FlexRow(
-                        FilePreviewButton(item, showDetails: true).Flex(grow: 1, basis: 0),
+                        FilePreviewButton(item).Flex(grow: 1, basis: 0),
+                        VStack(2, Text($"{item.Bytes:N0} bytes · {item.Kind}"),
+                            TextBlock(item.LastWriteUtc.ToLocalTime().ToString("g")).FontSize(12).Foreground(Theme.SecondaryText))
+                            .Width(260).Margin(left: 12).Flex(shrink: 0),
                         OpenFileButton(item).Margin(left: 8).Flex(shrink: 0)
                     ).HAlign(HorizontalAlignment.Stretch).WithKey(item.FullPath)).ToArray()),
                     VStack(4, (inventory?.Notices ?? Array.Empty<string>()).Select((notice, index) => Text(notice).WithKey($"notice-{index}")).ToArray()),
@@ -126,33 +160,55 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
             }
         }
 
+        if (Props.Loading && selected is not null)
+            content = Section("Loading application details",
+                HStack(16, ProgressRing().Set(control => { control.IsActive = true; control.IsIndeterminate = true; })
+                        .AutomationName("Loading application details").Width(36).Height(36),
+                    VStack(6, TextBlock($"Loading {selected.Name}…").SemiBold(),
+                        Text("Reading package information, settings, and files. You can select another app while this loads.")))
+                    .Set(BrowserMotion.LoadingBounce).Padding(20));
+
         return
-                ScrollView(VStack(20,
-                    FlexRow(
-                        HStack(16, Slot("heading-icon", selected is null ? Icon(FontIcon("\uE71D", "Segoe Fluent Icons")).Width(48).Height(48) : AppIcon(selected, 48)),
-                            Heading(selected?.Name ?? "WinApps")).Flex(grow: 1, basis: 0),
-                        Slot("launch-actions", selected is not null ? Component<ApplicationLaunchActions, ApplicationLaunchActionsProps>(new(selected, packageConfiguration))
-                            .WithKey(selected.FullName) : Text("")).Flex(shrink: 0)),
-                    TextBlock(selected?.Publisher ?? "Your installed applications, settings, and storage").TextWrapping().Foreground(Theme.SecondaryText),
+                FlexColumn(
+                    Card(VStack(12,
                     HStack(8, new[] { "Overview", "Package", "Storage", "Settings", "Registry", "LocalState" }.Select(tab =>
-                        ToggleButton(tab, view == tab, enabled => { if (enabled) { Props.OnView(tab); } })
-                            .Set(control =>
-                            {
-                                if (control.Content is Microsoft.UI.Xaml.Controls.StackPanel existing && existing.Tag as string == tab) return;
-                                var panel = new Microsoft.UI.Xaml.Controls.StackPanel { Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal, Spacing = 6 };
-                                panel.Tag = tab;
-                                panel.Children.Add(new Microsoft.UI.Xaml.Controls.FontIcon
-                                {
-                                    Glyph = tab switch { "Overview" => "\uE946", "Package" => "\uE7B8", "Storage" => "\uEDA2", "Settings" => "\uE713", "Registry" => "\uE8F1", _ => "\uE8B7" },
-                                    FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Segoe Fluent Icons"), FontSize = 14
-                                });
-                                panel.Children.Add(new Microsoft.UI.Xaml.Controls.TextBlock { Text = tab });
-                                control.Content = panel;
-                            })
-                            .CornerRadius(9).Padding(12)
+                        ToggleButton(tab, view == tab, enabled => { if (enabled) { Props.OnView(tab); BackToTop(); } })
+                            .Set(BrowserMotion.Enable).CornerRadius(9).Padding(14)
                             .AutomationName($"View {tab}").IsEnabled(selected is not null && !busy).WithKey(tab)).ToArray()),
-                    TextBlock(status).TextWrapping().Foreground(Theme.SecondaryText),
-                    content.WithKey($"content-{selected?.FullName ?? "library"}-{view}")
-                ).Padding(28)).Flex(grow: 1, basis: 0);
+                    FlexRow(
+                        TextBlock(selected?.Name ?? "Your library").SemiBold().TextWrapping().Flex(grow: 1, basis: 0),
+                        ActionButton("Reload resources", ReloadResources).Margin(right: 8)
+                            .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, UiResources.FilePath)),
+                        Button(HStack(8, FluentGlyph("\uE74A"), TextBlock("Back to top")), BackToTop)
+                            .AutomationName("Back to top").Padding(14).CornerRadius(9)
+                            .Background(Theme.LayerFill).WithBorder(Theme.CardStroke)),
+                    Text(resourceStatus.Value).IsVisible(resourceStatus.Value.Length > 0)
+                    ).Padding(16)).Background(Theme.CardBackground).WithBorder(Theme.CardStroke).CornerRadius(12)
+                        .Margin(left: 28, top: 16, right: 28).Flex(shrink: 0),
+                ScrollView(VStack(20,
+                    Card(VStack(16,
+                        HStack(16, Slot("heading-icon", selected is null ? Icon(FontIcon("\uE71D", "Segoe Fluent Icons")).Width(48).Height(48) : AppIcon(selected, 48)),
+                            VStack(4, Heading(selected?.Name ?? "WinApps"),
+                                TextBlock(selected is null ? "Your installed applications, settings, and storage" :
+                                    string.IsNullOrWhiteSpace(selected.FamilyName) ? "Desktop application · This PC" : "Packaged application · This PC")
+                                    .TextWrapping().Foreground(Theme.SecondaryText))),
+                        Slot("app-management", selected is not null ? Component<ApplicationManagementPanel, ApplicationManagementPanelProps>(new(selected))
+                            .WithKey($"management-{selected.FullName}") : Text("")).IsEnabled(!Props.Loading),
+                        Slot("launch-actions", selected is not null ? Component<ApplicationLaunchActions, ApplicationLaunchActionsProps>(new(selected, packageConfiguration))
+                            .WithKey(selected.FullName) : Text(""))
+                            .IsEnabled(!Props.Loading).IsVisible(selected is not null && !string.IsNullOrWhiteSpace(selected.FamilyName)))
+                        .Padding(24)).Background(Theme.CardBackground).WithBorder(Theme.CardStroke).CornerRadius(12),
+                    TextBlock(status).TextWrapping().FontSize(12).Foreground(Theme.SecondaryText).Margin(left: 4),
+                    content.WithKey($"content-{selected?.FullName ?? "library"}-{view}-{resourceVersion.Value}")
+                ).Set(BrowserMotion.Enable).Padding(28)).Set(control => _contentScroll = control).Flex(grow: 1, basis: 0)).Flex(grow: 1, basis: 0);
     }
+
+    private static void OpenDocumentation(string url) =>
+        Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+
+    private static Element DetailRow(string label, string value) => FlexRow(
+        TextBlock(label).Foreground(Theme.SecondaryText).Width(150).Flex(shrink: 0),
+        TextBlock(string.IsNullOrWhiteSpace(value) || value == "Unknown" ? "Not available" : value)
+            .TextWrapping().Set(control => control.IsTextSelectionEnabled = true).Margin(left: 16).Flex(grow: 1, basis: 0))
+        .Padding(10).Background(Theme.LayerFill).CornerRadius(6);
 }

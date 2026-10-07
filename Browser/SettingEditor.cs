@@ -99,11 +99,16 @@ internal sealed class SettingEditor : Component<SettingEditorProps>
                 editor = TextBox(value.Value, value.Set).AutomationName(setting.Value.Name);
         }
         return ErrorBoundary(VStack(6,
-            FlexRow(TextBlock(setting.Value.Name).SemiBold().TextWrapping().Flex(grow: 1, basis: 0),
-                TextBlock($"Stored type: {setting.Value.Type}").FontSize(12).Foreground(Theme.SecondaryText).Margin(left: 8).Flex(shrink: 0)),
-            Slot("value-editor", editor.IsEnabled(!Props.Disabled && !saving.Value).AutomationName(setting.Value.Name)),
-            Slot("save-action", editable ? ActionButton("Save", Save).IsEnabled(!Props.Disabled && !saving.Value && valid && value.Value != setting.Value.Value) : Text("Read only")),
-            Text(editable && !valid ? error : message.Value)).HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
+            FlexRow(
+                VStack(4, TextBlock(setting.Value.Name).SemiBold().TextWrapping(),
+                    TextBlock(setting.Value.Type).FontSize(12).Foreground(Theme.SecondaryText)).Width(220).Flex(shrink: 0),
+                VStack(4,
+                    Slot("value-editor", editor.IsEnabled(!Props.Disabled && !saving.Value).AutomationName(setting.Value.Name)),
+                    Text(editable && !valid ? error : message.Value).IsVisible((editable && !valid) || message.Value.Length > 0))
+                    .Margin(left: 16).Flex(grow: 1, basis: 0),
+                Slot("save-action", editable ? ActionButton("Save", Save).IsEnabled(!Props.Disabled && !saving.Value && valid && value.Value != setting.Value.Value) : Text("Read only"))
+                    .Width(90).Margin(left: 12).Flex(shrink: 0))
+                .Padding(10).Background(Theme.LayerFill).WithBorder(Theme.CardStroke).CornerRadius(6)).HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
                 .WithKey($"setting-body-{attempt.Value}"),
             failure => Component<ErrorRecoveryPanel, ErrorRecoveryPanelProps>(new("This setting couldn't be displayed", failure,
                 () => attempt.Set(attempt.Value + 1), null))).WithKey("setting-boundary");

@@ -1,0 +1,126 @@
+{
+  "Sections": {
+    "Windows package registration": {
+      "Explanation": "The identity Windows registered for this installed package. The family groups versions; the full name identifies a particular version and architecture.",
+      "Topic": "Package registration",
+      "Url": "https://learn.microsoft.com/en-us/uwp/api/windows.applicationmodel.package"
+    },
+    "Installed package metadata": {
+      "Explanation": "Display information, install location, and dates reported by Windows for this package.",
+      "Topic": "Package metadata",
+      "Url": "https://learn.microsoft.com/en-us/uwp/api/windows.applicationmodel.package"
+    },
+    "Package health and deployment status": {
+      "Explanation": "Windows deployment flags describe availability, integrity, licensing, and dependency issues. These are package status signals, not a diagnosis of the app's behavior.",
+      "Topic": "Package status",
+      "Url": "https://learn.microsoft.com/en-us/uwp/api/windows.applicationmodel.packagestatus"
+    },
+    "Resolved installed dependencies": {
+      "Explanation": "Dependencies supply shared components; device-family declarations define supported Windows versions. A Windows App SDK dependency alone does not prove that the app uses WinUI 3.",
+      "Topic": "Framework packages",
+      "Url": "https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/framework-packages/framework-packages-overview"
+    },
+    "Dependencies and target device families": {
+      "Explanation": "Dependencies supply shared components; device-family declarations define supported Windows versions. A Windows App SDK dependency alone does not prove that the app uses WinUI 3.",
+      "Topic": "Framework packages",
+      "Url": "https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/framework-packages/framework-packages-overview"
+    },
+    "Registry and filesystem virtualization": {
+      "Explanation": "Packaging can redirect registry and file writes into private app storage. Runtime, trust, and explicit manifest overrides affect this behavior.",
+      "Topic": "MSIX containerization",
+      "Url": "https://learn.microsoft.com/en-us/windows/msix/msix-containerization-overview"
+    },
+    "Selected application": {
+      "Explanation": "Application declarations identify executable and activation entry points. Runtime and trust describe how Windows starts and isolates an app; they do not identify its UI framework.",
+      "Topic": "Application manifest",
+      "Url": "https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/element-f-application"
+    },
+    "Application activation and isolation": {
+      "Explanation": "Application declarations identify executable and activation entry points. Runtime and trust describe how Windows starts and isolates an app; they do not identify its UI framework.",
+      "Topic": "Application manifest",
+      "Url": "https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/element-f-application"
+    },
+    "Package identity and architecture": {
+      "Explanation": "Name, publisher, version, and architecture establish package identity. These are installation identifiers rather than editable preferences.",
+      "Topic": "Identity schema",
+      "Url": "https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/schema-root"
+    },
+    "Package properties": {
+      "Explanation": "Publisher and display metadata describe the package. Resource references may be resolved by Windows at runtime.",
+      "Topic": "Properties schema",
+      "Url": "https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/schema-root"
+    },
+    "Resources and languages": {
+      "Explanation": "Resource declarations describe language and scale variants. Installed resource packs are candidates; this view does not determine the variant selected at runtime.",
+      "Topic": "Resources schema",
+      "Url": "https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/schema-root"
+    },
+    "Capabilities and permissions": {
+      "Explanation": "Capabilities declare access the package requests. A declaration does not prove that access has been granted or used.",
+      "Topic": "Capabilities schema",
+      "Url": "https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/element-f-capabilities"
+    },
+    "Metadata": {
+      "Explanation": "Build or tooling metadata accompanies the package. Its meaning is defined by the producing tool and namespace; it is not an application setting.",
+      "Topic": "Manifest schema",
+      "Url": "https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/schema-root"
+    },
+    "PhoneIdentity": {
+      "Explanation": "Legacy phone identity declarations support compatibility with older Windows phone packaging. They do not establish that this app currently runs on a phone.",
+      "Topic": "Manifest schema",
+      "Url": "https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/schema-root"
+    },
+    "All applications and app extensions": {
+      "Explanation": "Applications and extensions declare Windows integration, including protocol handlers, file associations, and background activation.",
+      "Topic": "Extensions schema",
+      "Url": "https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/schema-root"
+    },
+    "Package extensions": {
+      "Explanation": "Applications and extensions declare Windows integration, including protocol handlers, file associations, and background activation.",
+      "Topic": "Extensions schema",
+      "Url": "https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/schema-root"
+    },
+    "Manifest namespaces and compatibility": {
+      "Explanation": "Namespaces identify schema families and versions. Compatibility declarations tell Windows how to interpret supported or ignorable extensions.",
+      "Topic": "Manifest schema",
+      "Url": "https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/schema-root"
+    },
+    "Default": {
+      "Explanation": "These are declarations from the package manifest. Their meaning depends on the element and its XML namespace; the original details are available below.",
+      "Topic": "Manifest schema",
+      "Url": "https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/schema-root"
+    }
+  },
+  "Links": {
+    "Msix": {
+      "Label": "Microsoft Learn · MSIX packaging",
+      "Url": "https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/packaging/"
+    },
+    "WinUI3": {
+      "Label": "Microsoft Learn · WinUI 3",
+      "Url": "https://learn.microsoft.com/en-us/windows/apps/winui/winui3/"
+    },
+    "Frameworks": {
+      "Label": "Microsoft Learn · Windows app frameworks",
+      "Url": "https://learn.microsoft.com/en-us/windows/apps/get-started/"
+    },
+    "Runtime": {
+      "Label": "Microsoft Learn · application runtime and trust",
+      "Url": "https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/element-f-application"
+    }
+  },
+  "Controls": {
+    "Grid": {
+      "Label": "Grid",
+      "Icon": "▦"
+    },
+    "Rows": {
+      "Label": "Rows",
+      "Icon": "☰"
+    },
+    "Widgets": {
+      "Label": "Widgets",
+      "Icon": "▣"
+    }
+  }
+}

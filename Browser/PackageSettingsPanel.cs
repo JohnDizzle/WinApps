@@ -32,9 +32,13 @@ internal sealed class PackageSettingsPanel : Component<PackageSettingsPanelProps
             ActionButton("Reload settings · discard unsaved edits", Reload).IsEnabled(!Props.Disabled && !loading.Value),
             Text(message.Value),
             VStack(8, (current?.Values ?? []).GroupBy(item => item.Container).Select(group =>
-                Disclosure(group.Key, VStack(12, group.Select(item =>
+                Disclosure(group.Key, VStack(4, new Element[] {
+                    FlexRow(TextBlock("Key").SemiBold().Width(220).Flex(shrink: 0),
+                        TextBlock("Value").SemiBold().Margin(left: 16).Flex(grow: 1, basis: 0),
+                        TextBlock("Action").Width(90).Margin(left: 12).Flex(shrink: 0)).Padding(10)
+                    }.Concat(group.Select(item =>
                     Component<SettingEditor, SettingEditorProps>(new(Props.FamilyName, item, current!, Props.Disabled || loading.Value))
-                        .WithKey(System.Text.Json.JsonSerializer.Serialize(item.Location) + item.Name)).ToArray()), true)
+                        .WithKey(System.Text.Json.JsonSerializer.Serialize(item.Location) + item.Name))).ToArray()), true)
                     .WithKey(group.Key)).ToArray()),
             VStack(4, (current?.Notices ?? []).Select(Text).ToArray()));
     }

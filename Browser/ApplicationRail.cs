@@ -11,7 +11,7 @@ namespace MyApps.Browser;
 
 internal sealed record ApplicationRailProps(InstalledApp[] Apps, InstalledApp? Selected, AppDataInventory? Inventory,
     string View, bool Busy, Action<InstalledApp> OnSelect, Action OnUnselect, Action OnRefresh,
-    Action<AppDataFile> OnPreviewFile, Action<AppDataFile> OnOpenFile, Action<string> OnView);
+    Action<AppDataFile> OnPreviewFile, Action<AppDataFile> OnOpenFile, Action<string> OnView, bool Loading = false);
 
 internal sealed class ApplicationRail : Component<ApplicationRailProps>
 {
@@ -55,7 +55,7 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                 .CornerRadius(8)
                 .IsEnabled(key == "All" || matches.Any(app => Initial(app) == key)).WithKey(key)).ToArray())
                 .WithKey($"letters-{index}")).ToArray());
-        var dataFileTree = inventory is null ? Text(busy ? "Loading application files…" : "Application files are unavailable.")
+        var dataFileTree = inventory is null ? Text(busy || Props.Loading ? "Loading application files…" : "Application files are unavailable.")
             : VStack(8, new[] { "Settings", "Registry", "LocalState" }.Select(area => Disclosure(area,
                 VStack(4, inventory.Files.Any(item => item.Area == area)
                     ? inventory.Files.Where(item => item.Area == area).Select(item => FlexRow(
@@ -68,11 +68,7 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
             Slot("file-inventory", dataFileTree));
         // Keep the selected application's files inside its native ListView row.
         var selectedIndex = Array.FindIndex(visibleApps, app => app.FullName == selected?.FullName);
-        var appList = ListView((int?)selectedIndex, index =>
-        {
-            if (index >= 0 && index < visibleApps.Length && !busy && visibleApps[index].FullName != selected?.FullName)
-                Select(new AppTreeNode(visibleApps[index].FullName, visibleApps[index].Name, visibleApps[index], Array.Empty<AppTreeNode>()));
-        }, visibleApps.Select(app => VStack(8,
+        var appList = (ListView<InstalledApp>(visibleApps, app => app.FullName, (app, _) => VStack(8,
             FlexRow(
                 CheckBox(app.FullName == selected?.FullName, isChecked =>
                 {
@@ -91,7 +87,12 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                     { appFilesOpen.Set(expanded); if (expanded) appsListOpen.Set(false); })
                     .AutomationName($"Files for {app.Name}")
                 : Text(""))
-        ).HAlign(HorizontalAlignment.Stretch).Padding(10).WithKey(app.FullName)).ToArray())
+        ).HAlign(HorizontalAlignment.Stretch).Padding(10).WithKey(app.FullName)) with { SelectedIndex = selectedIndex })
+            .SelectedIndexChanged(index =>
+            {
+                if (index >= 0 && index < visibleApps.Length && !busy && visibleApps[index].FullName != selected?.FullName)
+                    Select(new AppTreeNode(visibleApps[index].FullName, visibleApps[index].Name, visibleApps[index], Array.Empty<AppTreeNode>()));
+            })
             .AutomationName("Alphabetical application list").IsEnabled(!busy).HAlign(HorizontalAlignment.Stretch)
             .Set(control =>
             {

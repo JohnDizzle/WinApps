@@ -1,5 +1,7 @@
 # Architecture
 
+See the [application selection and property navigation diagram](navigation-flow.md) for the user flow and component state rules.
+
 WinApps is the public project name. The current executable, project files, C# namespace, and local cache directory retain the `MyApps` name.
 
 ```text

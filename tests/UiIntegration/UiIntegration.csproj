@@ -13,6 +13,7 @@
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="../../Resources/ui-resources.json" LogicalName="WinApps.UiResources" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.1.3" />
     <PackageReference Include="Microsoft.UI.Reactor" Version="0.1.0-preview.12" />
     <Compile Include="../../Browser/**/*.cs" LinkBase="Browser" />

@@ -26,7 +26,9 @@ public sealed class PackageCatalog
                     $"{version.Major}.{version.Minor}.{version.Build}.{version.Revision}",
                     Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Packages", id.FamilyName), package.InstalledLocation.Path, IconUri: MyApps.Services.Icons.ApplicationIcons.PackageIcon(entry, $"{id.FullName}|{entry.AppUserModelId}")));
             }
-            catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or UnauthorizedAccessException)
+            // Windows can retain registrations whose package files or resources are missing.
+            catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException
+                or UnauthorizedAccessException or FileNotFoundException or DirectoryNotFoundException)
             {
                 skipped++;
             }
@@ -34,7 +36,6 @@ public sealed class PackageCatalog
         return new PackageScan(apps.OrderBy(app => app.Name, StringComparer.OrdinalIgnoreCase).ToArray(), skipped);
     }
 }
-
 
 
 

@@ -43,6 +43,7 @@ The first launch scans the current user's installed applications. Later launches
 
 - [Inspection behavior and limits](docs/inspection.md)
 - [Architecture and directory structure](docs/architecture.md)
+- [Application selection and navigation diagram](docs/navigation-flow.md)
 - [Contributing and validation](CONTRIBUTING.md)
 - [Release procedure](docs/releasing.md)
 - [Reserved Store identity](docs/store-identity.md)

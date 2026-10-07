@@ -29,12 +29,14 @@ public sealed class PackageExplorer : Component
         var preview = UseState("");
         var view = UseState("Overview");
         var busy = UseState(false);
+        var inspecting = UseState(false);
         var status = UseState("Loading your application library…");
         var railAttempt = UseState(0);
         var detailAttempt = UseState(0);
         void ClearSelection()
         {
             _selectionVersion++;
+            inspecting.Set(false);
             selected.Set(null); inventory.Set(null); settings.Set(null); file.Set(null);
             packageConfiguration.Set(null);
             footprint.Set(Array.Empty<FolderFootprint>());
@@ -94,27 +96,26 @@ public sealed class PackageExplorer : Component
             selected.Set(app); inventory.Set(null); settings.Set(null); file.Set(null); preview.Set("");
             packageConfiguration.Set(null);
             footprint.Set(Array.Empty<FolderFootprint>()); view.Set("Overview");
-            busy.Set(true); status.Set("Inspecting Settings and LocalState…");
+            inspecting.Set(true); status.Set($"Loading {app.Name}…");
             try
             {
-                var configuration = await Task.Run(() => new PackageConfigurationReader().Read(app));
+                var configurationTask = Task.Run(() => new PackageConfigurationReader().Read(app));
+                var filesTask = Task.Run(() => new AppDataInspector().Inspect(app));
+                var settingsTask = Task.Run(() => new PackageSettingsReader().Read(app.FamilyName));
+                await Task.WhenAll(configurationTask, filesTask, settingsTask);
                 if (request != _selectionVersion) return;
-                packageConfiguration.Set(configuration);
-                var files = await Task.Run(() => new AppDataInspector().Inspect(app));
-                if (request != _selectionVersion) return;
-                inventory.Set(files);
-                var snapshot = await Task.Run(() => new PackageSettingsReader().Read(app.FamilyName));
-                if (request != _selectionVersion) return;
-                settings.Set(snapshot);
+                packageConfiguration.Set(configurationTask.Result);
+                inventory.Set(filesTask.Result);
+                settings.Set(settingsTask.Result);
                 status.Set("Disk inventory loaded. Select a file to preview supported text formats.");
             }
             catch (Exception ex) { if (request == _selectionVersion) status.Set($"Inspection failed: {ex.Message}"); }
-            finally { if (request == _selectionVersion) busy.Set(false); }
+            finally { if (request == _selectionVersion) inspecting.Set(false); }
         }
 
         async void Measure()
         {
-            if (busy.Value || selected.Value is null) return;
+            if (busy.Value || inspecting.Value || selected.Value is null) return;
             var app = selected.Value;
             busy.Set(true);
             try
@@ -128,7 +129,7 @@ public sealed class PackageExplorer : Component
 
         async void PreviewFile(AppDataFile item)
         {
-            if (busy.Value) return;
+            if (busy.Value || inspecting.Value) return;
             file.Set(item); view.Set(item.Area); preview.Set("Loading preview…"); busy.Set(true);
             try
             {
@@ -178,13 +179,13 @@ public sealed class PackageExplorer : Component
         return FlexColumn(
             FlexRow(
                 ErrorBoundary(Component<ApplicationRail, ApplicationRailProps>(new(apps.Value, selected.Value, inventory.Value,
-                    view.Value, busy.Value, Select, Unselect, Scan, PreviewFile, OpenFile, OpenView)).WithKey($"application-rail-{railAttempt.Value}"),
+                    view.Value, busy.Value, Select, Unselect, Scan, PreviewFile, OpenFile, OpenView, inspecting.Value)).WithKey($"application-rail-{railAttempt.Value}"),
                     error => Component<ErrorRecoveryPanel, ErrorRecoveryPanelProps>(new("Application list unavailable", error,
                         () => railAttempt.Set(railAttempt.Value + 1), RecoverList)).Width(360))
                     .WithKey("rail-boundary").Flex(shrink: 0),
                 ErrorBoundary(Component<ApplicationDetailPane, ApplicationDetailPaneProps>(new(selected.Value, footprint.Value,
                     inventory.Value, settings.Value, packageConfiguration.Value, file.Value, preview.Value,
-                    view.Value, busy.Value, status.Value, OpenView, Measure, OpenFolder, OpenFile, PreviewFile))
+                    view.Value, busy.Value || inspecting.Value, status.Value, OpenView, Measure, OpenFolder, OpenFile, PreviewFile, inspecting.Value))
                     .WithKey($"application-detail-{detailAttempt.Value}"),
                     error => Component<ErrorRecoveryPanel, ErrorRecoveryPanelProps>(new("Application details unavailable", error,
                         () => detailAttempt.Set(detailAttempt.Value + 1), RecoverList)))

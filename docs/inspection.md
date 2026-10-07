@@ -49,3 +49,10 @@ The Registry view inventories per-user stores under `SystemAppData/Helium` and k
 The package view reports declared registry/filesystem virtualization options and exclusions. An absent override means Windows runtime defaults apply; it does not establish that no private registry exists. A manifest does not enumerate every settings file or database.
 
 LocalState files with a SQLite signature are identified even without a database extension. Other database extensions are marked as unverified. Database tables are not inspected or editable; database adapters remain planned work. Discovery reads metadata and file headers without modifying files.
+# Package property presentation
+
+The Package view offers Rows (expandable groups), Grid (detailed cards), and Widgets (summaries with visible Microsoft Learn links). Cards adapt to the available width. Each group includes an authored explanation and its original details; repeated XML elements keep their separate paths and indices.
+
+Explanations render inside WinApps as themed Markdown with headings, bold text, bullets, HTTPS links, and fenced code blocks. Package XML is displayed as literal, copyable code. Native colors follow the app theme. Section and layout changes use Fluent entrance and reposition transitions; toggle changes use a short fade that respects Windows Animation effects.
+
+The inspector does not use AI. See [future settings assistance](future-settings-assistance.md) for the deferred Copilot/local LLM idea.

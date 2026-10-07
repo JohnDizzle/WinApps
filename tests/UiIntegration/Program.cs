@@ -63,6 +63,85 @@ public sealed partial class ChecksApplication : Application
                     "The window root must own the selected theme for all descendants.");
             }
             var app = new InstalledApp("Fixture", "fixture-family", "fixture-family!App", "Publisher", "1", "", "");
+            var railApps = new[] { app };
+            var loadingDetails = Component<ApplicationDetailPane, ApplicationDetailPaneProps>(new(app, [], null, null, null,
+                null, "", "Overview", true, "Loading", _ => { }, () => { }, _ => { }, _ => { }, _ => { }, true));
+            var loadingNative = reconciler.Mount(loadingDetails, () => { })!;
+            Check(Descendants(loadingNative).OfType<ProgressRing>().Single().IsActive,
+                "App inspection must show an active loading indicator in the detail pane.");
+            var railInventory = new AppDataInventory([], []);
+            Element Rail() => Component<ApplicationRail, ApplicationRailProps>(new(railApps, app, railInventory,
+                "Package", false, _ => { }, () => { }, () => { }, _ => { }, _ => { }, _ => { })).WithKey("rail");
+            var railTree = Rail();
+            var railNative = reconciler.Mount(railTree, () => { })!;
+            var railList = Descendants(railNative).OfType<ListView>().Single();
+            var railItem = railList.Items[0];
+            foreach (var mode in new[] { "Grid", "Rows", "Widgets" })
+            {
+                var nextRail = Rail();
+                railNative = reconciler.Reconcile(railTree, nextRail, railNative, () => { })!;
+                Check(ReferenceEquals(railList, Descendants(railNative).OfType<ListView>().Single()) &&
+                    ReferenceEquals(railItem, railList.Items[0]),
+                    $"Unrelated {mode} rendering must retain the rail's keyed item.");
+                railTree = nextRail;
+            }
+            var resourceJson = System.Text.Json.JsonSerializer.Serialize(UiResources.Current);
+            var resourceCopy = UiResources.Parse(resourceJson);
+            Check(resourceCopy.Sections.ContainsKey("Windows package registration") && resourceCopy.Controls.Count == 3,
+                "Bundled resources must include guides and all layout controls.");
+            var invalidResourcesRejected = false;
+            try { UiResources.Parse(resourceJson.Replace("https://", "http://")); }
+            catch (InvalidDataException) { invalidResourcesRejected = true; }
+            Check(invalidResourcesRejected, "Invalid resource links must be rejected before applying edits.");
+            Check(ApplicationManagementPanel.ManagementUri(app).OriginalString == "ms-settings:appsfeatures-app?fixture-family",
+                "App management must target the package family, not the AUMID.");
+            Check(ApplicationManagementPanel.ManagementUri(app with { FamilyName = "48996JohnM.Doyle.WebDive_jw9ac53qrz6qt" }).OriginalString
+                == "ms-settings:appsfeatures-app?48996JohnM.Doyle.WebDive_jw9ac53qrz6qt",
+                "Web Dive Advanced options must receive its registered package family.");
+            Check(ApplicationManagementPanel.ManagementUri(app with { FamilyName = "", Source = "Desktop · Start Menu" }).OriginalString
+                == "ms-settings:appsfeatures", "Shortcuts without a package identity must use the Installed apps fallback.");
+            var motionPanel = new StackPanel();
+            var railSlot = (StackPanel)reconciler.Mount(BrowserUi.Slot("app-files", TextBlock("Files")), () => { })!;
+            Check(railSlot.ChildrenTransitions is null || railSlot.ChildrenTransitions.Count == 0,
+                "Shared rail slots must not replay detail entrance animations.");
+            BrowserMotion.Enable(motionPanel);
+            var transitions = motionPanel.ChildrenTransitions;
+            BrowserMotion.Enable(motionPanel);
+            Check(ReferenceEquals(transitions, motionPanel.ChildrenTransitions) && transitions.Count == 2,
+                "Motion attachment must be idempotent across renders.");
+            var markdownNative = reconciler.Mount(MarkdownContent.Render(
+                "## Guide\n**Identity**\n[Microsoft Learn](https://learn.microsoft.com/en-us/windows/apps/)\n```xml\n<Package />\n```", "Guide"), () => { })!;
+            Check(Descendants(markdownNative).OfType<TextBlock>().SelectMany(control => control.Inlines)
+                .OfType<Microsoft.UI.Xaml.Documents.Hyperlink>().Single().NavigateUri.Host == "learn.microsoft.com",
+                "Authored Markdown links must remain clickable native hyperlinks.");
+            Check(Descendants(markdownNative).OfType<TextBox>().Single().Text == "<Package />",
+                "Fenced XML must render as copyable code.");
+            var codeNative = reconciler.Mount(MarkdownContent.Code("[link](https://example.com)\n```", "xml", "Raw"), () => { })!;
+            Check(!Descendants(codeNative).OfType<TextBlock>().SelectMany(control => control.Inlines)
+                .OfType<Microsoft.UI.Xaml.Documents.Hyperlink>().Any(), "Package source must not become an actionable Markdown link.");
+            var properties = PackagePropertyGroups.Properties("<Applications><Application Id=\"One\"/><Application Id=\"Two\"/></Applications>");
+            Check(properties.Count == 2 && properties[0].Key != properties[1].Key && properties[1].Value == "Two",
+                "Property layouts must preserve distinct repeated XML declarations.");
+            properties = PackagePropertyGroups.Properties("Location: C:\\Apps\\Fixture\nStatus: OK");
+            Check(properties[0].Value == "C:\\Apps\\Fixture", "Property rows must preserve colons in values.");
+            Element PropertyGroups() => Component<PackagePropertyGroups, PackagePropertyGroupsProps>(new([
+                new("Windows package registration", "Name: Fixture\nVersion: 1"),
+                new("Capabilities and permissions", "<Capabilities><Capability Name=\"internetClient\" /></Capabilities>")]))
+                .WithKey("properties");
+            var propertyTree = PropertyGroups();
+            var propertyNative = reconciler.Mount(propertyTree, () => { })!;
+            foreach (var mode in new[] { "Grid", "Widgets", "Rows", "Grid" })
+            {
+                var toggle = Descendants(propertyNative).OfType<Microsoft.UI.Xaml.Controls.Primitives.ToggleButton>()
+                    .Single(control => Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(control) == $"Package layout {mode}");
+                toggle.IsChecked = true;
+                var next = PropertyGroups();
+                propertyNative = reconciler.Reconcile(propertyTree, next, propertyNative, () => { })!;
+                Check(Descendants(propertyNative).OfType<Microsoft.UI.Xaml.Controls.Primitives.ToggleButton>()
+                    .Single(control => Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(control) == $"Package layout {mode}").IsChecked == true,
+                    "The selected package layout must survive reconciliation.");
+                propertyTree = next;
+            }
             Element Launch(bool elevated) => Component<ApplicationLaunchActions, ApplicationLaunchActionsProps>(new(app,
                 new("", "", "", "", [], "", [], Launch: new("App", "fixture.exe", elevated)))).WithKey("launch");
             var old = Launch(false);
