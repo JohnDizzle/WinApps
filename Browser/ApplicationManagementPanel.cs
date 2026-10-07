@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0-only
-using System.Diagnostics;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using MyApps.Models;
@@ -17,17 +16,15 @@ internal sealed class ApplicationManagementPanel : Component<ApplicationManageme
         var busy = UseState(false);
         var message = UseState("");
         var packaged = !string.IsNullOrWhiteSpace(Props.App.FamilyName);
-        void OpenSettings()
+        async void OpenSettings()
         {
             if (busy.Value) return;
             busy.Set(true);
             try
             {
-                var uri = ManagementUri(Props.App);
-                // This inspector is an unpackaged desktop app. Let the Windows
-                // shell activate Settings with the selected family's URI.
-                Process.Start(new ProcessStartInfo(uri.OriginalString) { UseShellExecute = true });
-                message.Set(packaged ? "" : $"Search Installed apps for {Props.App.Name}. Start menu shortcuts may not have an installed-app entry.");
+                var opened = await OpenManagementAsync(Props.App, uri => Windows.System.Launcher.LaunchUriAsync(uri).AsTask());
+                message.Set(!opened ? "Windows couldn't open app settings. Open Settings → Apps → Installed apps."
+                    : packaged ? "" : $"Search Installed apps for {Props.App.Name}. Start menu shortcuts may not have an installed-app entry.");
             }
             catch (Exception error) { message.Set($"Couldn't open Windows Settings: {error.Message}"); }
             finally { busy.Set(false); }
@@ -60,5 +57,13 @@ internal sealed class ApplicationManagementPanel : Component<ApplicationManageme
 
     internal static Uri ManagementUri(InstalledApp app) => string.IsNullOrWhiteSpace(app.FamilyName)
         ? new("ms-settings:appsfeatures")
-        : new("ms-settings:appsfeatures-app?" + Uri.EscapeDataString(app.FamilyName));
+        : new("ms-settings:appsfeatures-app?PackageFamilyName=" + Uri.EscapeDataString(app.FamilyName));
+    internal static async Task<bool> OpenManagementAsync(InstalledApp app, Func<Uri, Task<bool>> launch)
+    {
+        var target = ManagementUri(app);
+        try { if (await launch(target)) return true; }
+        catch (Exception) when (!string.IsNullOrWhiteSpace(app.FamilyName)) { }
+        if (string.IsNullOrWhiteSpace(app.FamilyName)) return false;
+        return await launch(new Uri("ms-settings:appsfeatures"));
+    }
 }

@@ -97,13 +97,28 @@ public sealed partial class ChecksApplication : Application
             try { UiResources.Parse(resourceJson.Replace("https://", "http://")); }
             catch (InvalidDataException) { invalidResourcesRejected = true; }
             Check(invalidResourcesRejected, "Invalid resource links must be rejected before applying edits.");
-            Check(ApplicationManagementPanel.ManagementUri(app).OriginalString == "ms-settings:appsfeatures-app?fixture-family",
+            Check(ApplicationManagementPanel.ManagementUri(app).OriginalString == "ms-settings:appsfeatures-app?PackageFamilyName=fixture-family",
                 "App management must target the package family, not the AUMID.");
             Check(ApplicationManagementPanel.ManagementUri(app with { FamilyName = "48996JohnM.Doyle.WebDive_jw9ac53qrz6qt" }).OriginalString
-                == "ms-settings:appsfeatures-app?48996JohnM.Doyle.WebDive_jw9ac53qrz6qt",
+                == "ms-settings:appsfeatures-app?PackageFamilyName=48996JohnM.Doyle.WebDive_jw9ac53qrz6qt",
                 "Web Dive Advanced options must receive its registered package family.");
             Check(ApplicationManagementPanel.ManagementUri(app with { FamilyName = "", Source = "Desktop · Start Menu" }).OriginalString
                 == "ms-settings:appsfeatures", "Shortcuts without a package identity must use the Installed apps fallback.");
+            var launchedUris = new List<string>();
+            Check(ApplicationManagementPanel.OpenManagementAsync(app, uri =>
+            {
+                launchedUris.Add(uri.OriginalString);
+                return Task.FromResult(launchedUris.Count == 2);
+            }).GetAwaiter().GetResult() && launchedUris.SequenceEqual(new[] {
+                "ms-settings:appsfeatures-app?PackageFamilyName=fixture-family", "ms-settings:appsfeatures" }),
+                "A rejected direct launch must fall back to Installed apps.");
+            launchedUris.Clear();
+            Check(ApplicationManagementPanel.OpenManagementAsync(app, uri =>
+            {
+                launchedUris.Add(uri.OriginalString);
+                return Task.FromResult(true);
+            }).GetAwaiter().GetResult() && launchedUris.Count == 1,
+                "An accepted direct launch must not also open the fallback.");
             var motionPanel = new StackPanel();
             var railSlot = (StackPanel)reconciler.Mount(BrowserUi.Slot("app-files", TextBlock("Files")), () => { })!;
             Check(railSlot.ChildrenTransitions is null || railSlot.ChildrenTransitions.Count == 0,
