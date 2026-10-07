@@ -67,10 +67,10 @@ public sealed partial class ChecksApplication : Application
             var loadingDetails = Component<ApplicationDetailPane, ApplicationDetailPaneProps>(new(app, [], null, null, null,
                 null, "", "Overview", true, "Loading", _ => { }, () => { }, _ => { }, _ => { }, _ => { }, true));
             var loadingNative = reconciler.Mount(loadingDetails, () => { })!;
-            Check(Descendants(loadingNative).OfType<ProgressRing>().Single().IsActive,
+            Check(Descendants(loadingNative).OfType<ProgressRing>().Single(ring => ring.IsActive).IsActive,
                 "App inspection must show an active loading indicator in the detail pane.");
-            Check(Descendants(loadingNative).OfType<Microsoft.UI.Xaml.Controls.Primitives.ToggleButton>()
-                .Where(button => Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(button).StartsWith("View "))
+            Check(Descendants(loadingNative).OfType<Button>()
+                .Where(button => new[] { "View Overview", "View Package", "View Storage", "View Settings", "View Registry", "View LocalState" }.Contains(Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(button)))
                 .All(button => button.IsEnabled),
                 "Section tabs must remain interactive while app inspection runs.");
             var railInventory = new AppDataInventory([], []);
@@ -150,6 +150,16 @@ public sealed partial class ChecksApplication : Application
                 new("", "", "", "", [], "", [], Launch: new("App", "fixture.exe", elevated)))).WithKey("launch");
             var old = Launch(false);
             var native = reconciler.Mount(old, () => { })!;
+            Check(Descendants(native).OfType<Button>().Count(button =>
+                Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(button) == "Uninstall Fixture") == 1,
+                "Uninstall must be available beside Launch.");
+            Check(Descendants(native).OfType<StackPanel>().Any(panel => panel.Visibility == Visibility.Collapsed &&
+                panel.Children.OfType<TextBlock>().Any(text => text.Text.StartsWith("Uninstall Fixture for this Windows user?"))),
+                "Destructive confirmation must start hidden and require the Uninstall action.");
+            Check(new MyApps.Services.Packages.ApplicationUninstaller().UninstallAsync(app with { FamilyName = "" })
+                .GetAwaiter().GetResult().Contains("Windows Installed apps"),
+                "Desktop shortcuts must never be sent to package removal.");
+
             foreach (var enabled in new[] { true, false, true })
             {
                 var next = Launch(enabled);
@@ -182,6 +192,13 @@ public sealed partial class ChecksApplication : Application
                 var next = Detail(selected, view);
                 var updated = reconciler.Reconcile(old, next, native, () => { })!;
                 Check(ReferenceEquals(native, updated), "Detail pane must retain its mounted root across sections.");
+                var tabs = Descendants(updated).OfType<Button>().Where(button =>
+                    new[] { "View Overview", "View Package", "View Storage", "View Settings", "View Registry", "View LocalState" }.Contains(Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(button))).ToArray();
+                Check(tabs.Length == 6 && tabs.Count(button => Microsoft.UI.Xaml.Automation.AutomationProperties.GetItemStatus(button) == "Selected") == 1,
+                    "Exactly one section must be selected after every navigation transition: " + string.Join(", ", tabs.Select(button => $"{Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(button)}={Microsoft.UI.Xaml.Automation.AutomationProperties.GetItemStatus(button)}")));
+                Check(Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(tabs.Single(button =>
+                    Microsoft.UI.Xaml.Automation.AutomationProperties.GetItemStatus(button) == "Selected")) == $"View {view}",
+                    "The selected section must match the current content.");
                 old = next; native = updated;
             }
             // Edit actual native text fields and run the host's next reconciliation pass.

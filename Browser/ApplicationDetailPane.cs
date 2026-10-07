@@ -165,7 +165,7 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
             content = Section("Loading application details",
                 HStack(16, ProgressRing().Set(control => { control.IsActive = true; control.IsIndeterminate = true; })
                         .AutomationName("Loading application details").Width(36).Height(36),
-                    VStack(6, TextBlock($"Loading {selected.Name}…").SemiBold(),
+                    VStack(6, TextBlock($"Loading {selected.Name} · {view}…").SemiBold(),
                         Text("Reading package information, settings, and files. You can select another app while this loads.")))
                     .Set(BrowserMotion.LoadingBounce).Padding(20));
 
@@ -173,8 +173,14 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                 FlexColumn(
                     Card(VStack(12,
                     ScrollView(HStack(8, new[] { "Overview", "Package", "Storage", "Settings", "Registry", "LocalState" }.Select(tab =>
-                        ToggleButton(tab, view == tab, enabled => { if (enabled) { Props.OnView(tab); BackToTop(); } })
-                            .Set(BrowserMotion.Enable).CornerRadius(9).Padding(14)
+                        Button(tab, () => { if (view != tab) { Props.OnView(tab); BackToTop(); } })
+                            .Background(view == tab ? Theme.Ref("AccentFillColorDefaultBrush") : Theme.LayerFill)
+                            .Foreground(view == tab ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.Ref("TextFillColorPrimaryBrush"))
+                            .Set(control =>
+                            {
+                                BrowserMotion.Enable(control);
+                                Microsoft.UI.Xaml.Automation.AutomationProperties.SetItemStatus(control, view == tab ? "Selected" : "");
+                            }).CornerRadius(9).Padding(14)
                             .AutomationName($"View {tab}").IsEnabled(selected is not null).WithKey(tab)).ToArray()))
                         .Set(control =>
                         {
@@ -208,7 +214,7 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                             .IsEnabled(!Props.Loading).IsVisible(selected is not null && !string.IsNullOrWhiteSpace(selected.FamilyName)))
                         .Padding(padding)).Background(Theme.CardBackground).WithBorder(Theme.CardStroke).CornerRadius(12),
                     TextBlock(status).TextWrapping().FontSize(12).Foreground(Theme.SecondaryText).Margin(left: 4),
-                    content.WithKey($"content-{selected?.FullName ?? "library"}-{view}-{resourceVersion.Value}")
+                    VStack(0, content).Set(BrowserMotion.Enable).WithKey($"content-{selected?.FullName ?? "library"}-{view}-{resourceVersion.Value}")
                 ).Padding(padding)).Set(control => _contentScroll = control).MinWidth(0).Flex(grow: 1, basis: 0)).MinWidth(0).Flex(grow: 1, basis: 0);
     }
 

@@ -14,7 +14,7 @@ WinApps is in active development.
 - Manifest configuration, declared runtime/trust, dependencies, capabilities, and related resource packages.
 - Typed scalar settings editors with explicit Save, automatic storage-type validation, and stale-value detection.
 - Read-only JSON/XML inspection and bounded text previews.
-- Package launch actions, with UAC elevation when declared and supported.
+- Package launch actions, with UAC elevation when declared and supported, and confirmed current-user package uninstall.
 - Windows app-management settings access for repair, reset, and uninstall where supported.
 - Registry hive discovery and SQLite signature identification, with inspection limits shown.
 - Mica window material, sun/moon theme toggle and separately mounted navigation, details, and setting editors.
