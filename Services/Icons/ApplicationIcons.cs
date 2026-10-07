@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 using MyApps.Models;
 using MyApps.Services.Packages;
 using Windows.Management.Deployment;

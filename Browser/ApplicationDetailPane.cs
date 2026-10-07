@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Reactor;
@@ -128,7 +129,7 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                 ScrollView(VStack(20,
                     FlexRow(
                         HStack(16, selected is null ? Icon(FontIcon("\uE71D", "Segoe Fluent Icons")).Width(48).Height(48) : AppIcon(selected, 48),
-                            Heading(selected?.Name ?? "MyApps")).Flex(grow: 1, basis: 0),
+                            Heading(selected?.Name ?? "WinApps")).Flex(grow: 1, basis: 0),
                         selected is not null ? Component<ApplicationLaunchActions, ApplicationLaunchActionsProps>(new(selected, packageConfiguration))
                             .WithKey(selected.FullName).Flex(shrink: 0) : Text("")),
                     TextBlock(selected?.Publisher ?? "Your installed applications, settings, and storage").TextWrapping().Foreground(Theme.SecondaryText),

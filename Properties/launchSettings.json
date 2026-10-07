@@ -1,10 +1,10 @@
 {
   "profiles": {
-    "MyApps": {
+    "WinApps": {
       "commandName": "Project",
       "nativeDebugging": false
     },
-    "MyApps Devtools": {
+    "WinApps Devtools": {
       "commandName": "Project",
       "commandLineArgs": "--devtools",
       "nativeDebugging": false

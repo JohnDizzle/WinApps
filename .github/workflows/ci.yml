@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Windows build and inspection checks
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore application
+        run: dotnet restore MyApps.csproj --property:Configuration=Release
+      - name: Build application
+        run: dotnet build MyApps.csproj --configuration Release --no-restore
+      - name: Run portable inspection checks
+        run: dotnet run --project tests/DataInspection/DataInspection.csproj --configuration Release
+      - name: Check patch whitespace
+        run: git diff --check

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 namespace MyApps.Services.Packages;
 
 public static class PackageLaunchPath

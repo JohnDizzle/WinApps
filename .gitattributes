@@ -1,0 +1,6 @@
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
+# Preserve upstream license whitespace without applying source formatting checks.
+docs/licenses/*.txt -whitespace

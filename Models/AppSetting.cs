@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 namespace MyApps.Models;
 
 public sealed record SettingLocation(string Store, IReadOnlyList<string> Containers, string Key);

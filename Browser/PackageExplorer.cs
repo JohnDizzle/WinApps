@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Reactor;
@@ -165,7 +166,7 @@ public sealed class PackageExplorer : Component
             .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, themeLabel));
         void OpenView(string next) { view.Set(next); file.Set(null); }
         return FlexColumn(
-            TitleBar("MyApps").Icon(FontIcon("\uE71D", "Segoe Fluent Icons"))
+            TitleBar("WinApps").Icon(FontIcon("\uE71D", "Segoe Fluent Icons"))
                 .RightHeader(themeToggle).AutoRefreshDragRegions(true).Flex(shrink: 0),
             FlexRow(
                 Component<ApplicationRail, ApplicationRailProps>(new(apps.Value, selected.Value, inventory.Value,

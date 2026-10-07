@@ -2,3 +2,14 @@ bin/
 obj/
 .vs/
 *.user
+.idea/
+TestResults/
+artifacts/
+*.suo
+*.log
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.snk

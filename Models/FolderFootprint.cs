@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 namespace MyApps.Models;
 
 public sealed record FolderFootprint(string Label, string Path, long Bytes, long Files, int Skipped, string State)
