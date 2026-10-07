@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "MyApps": {
+      "commandName": "Project",
+      "nativeDebugging": false
+    },
+    "MyApps Devtools": {
+      "commandName": "Project",
+      "commandLineArgs": "--devtools",
+      "nativeDebugging": false
+    }
+  }
+}
