@@ -26,22 +26,20 @@ internal sealed class ApplicationManagementPanel : Component<ApplicationManageme
                     ? new Uri("ms-settings:appsfeatures-app?" + Uri.EscapeDataString(Props.App.FamilyName))
                     : new Uri("ms-settings:appsfeatures");
                 var opened = await Windows.System.Launcher.LaunchUriAsync(uri);
-                message.Set(opened ? "Windows Settings opened. After making changes, refresh the application library."
+                message.Set(opened ? ""
                     : "Windows couldn't open this settings page. Open Settings → Apps → Installed apps.");
             }
             catch (Exception error) { message.Set($"Couldn't open Windows Settings: {error.Message}"); }
             finally { busy.Set(false); }
         }
 
-        return Section("Windows app management",
-            Text(packaged ? "Open this application's Windows settings to see its available management actions."
-                : "Open Installed apps, then find this application to see its available management actions."),
-            Text("Repair · Fix the app while keeping its data, when supported."),
-            Text("Reset · Restore initial app state. Windows may delete settings, sign-ins, and local app data."),
-            Text("Uninstall · Remove the app. Windows shows availability and confirmation."),
-            Button(HStack(6, FluentGlyph("\uE713"), TextBlock(packaged ? "Open app settings in Windows" : "Open Installed apps")), OpenSettings)
+        return VStack(4,
+            Button(HStack(6, FluentGlyph("\uE713"), TextBlock("App management")), OpenSettings)
                 .AutomationName($"Open Windows management settings for {Props.App.Name}")
-                .IsEnabled(!busy.Value).CornerRadius(9).Padding(12),
+                .IsEnabled(!busy.Value).CornerRadius(9).Padding(10)
+                .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control,
+                    packaged ? "Open Windows app settings for repair, reset, and uninstall where supported."
+                        : "Open Windows Installed apps to manage this desktop application.")),
             Text(message.Value));
     }
 }
