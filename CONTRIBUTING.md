@@ -45,6 +45,12 @@ dotnet run --project tests/PackageIntegration/PackageIntegration.csproj
 
 Pass the exact identity names of locally installed packages after `--` to choose integration fixtures. These checks read package configuration without launching applications or changing settings. CI runs the portable inspection checks and builds WinApps; hosted runners cannot assume fixture packages are installed.
 
+Native UI checks run in a hidden WinUI window without launching inspected apps or writing settings:
+
+```powershell
+dotnet run --project tests/UiIntegration/UiIntegration.csproj
+```
+
 For UI changes, verify light/dark themes, alphabet button sizing, file expander widths, keyboard navigation, and setting edit focus. Include screenshots with personal information removed. For save-path changes, test exact stored types, overflow, stale snapshots, sibling preservation, and unsupported read-only values.
 
 ## Pull requests and reports

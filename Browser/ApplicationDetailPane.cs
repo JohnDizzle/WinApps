@@ -4,10 +4,6 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using MyApps.Models;
-using MyApps.Services.Inventory;
-using MyApps.Services.Storage;
-using MyApps.Services.Settings;
-using MyApps.Services.Packages;
 using static Microsoft.UI.Reactor.Factories;
 
 using static MyApps.Browser.BrowserUi;
@@ -118,20 +114,20 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                         OpenFileButton(item).Margin(left: 8).Flex(shrink: 0)
                     ).HAlign(HorizontalAlignment.Stretch).WithKey(item.FullPath)).ToArray()),
                     VStack(4, (inventory?.Notices ?? Array.Empty<string>()).Select((notice, index) => Text(notice).WithKey($"notice-{index}")).ToArray()),
-                    file is not null && file.Area == area ? Section("File details", Text(file.FullPath),
+                    Slot("file-details", file is not null && file.Area == area ? Section("File details", Text(file.FullPath),
                         Text($"Modified: {file.LastWriteUtc.ToLocalTime():g} · {file.Bytes:N0} bytes · {file.Kind}"),
                         ReadOnlyText(preview, "File content preview"))
-                        : Text("Select a file to view details. Complete JSON/XML previews are validated and formatted; text previews are limited to 64 KiB."));
+                        : Text("Select a file to view details. Complete JSON/XML previews are validated and formatted; text previews are limited to 64 KiB.")));
             }
         }
 
         return
                 ScrollView(VStack(20,
                     FlexRow(
-                        HStack(16, selected is null ? Icon(FontIcon("\uE71D", "Segoe Fluent Icons")).Width(48).Height(48) : AppIcon(selected, 48),
+                        HStack(16, Slot("heading-icon", selected is null ? Icon(FontIcon("\uE71D", "Segoe Fluent Icons")).Width(48).Height(48) : AppIcon(selected, 48)),
                             Heading(selected?.Name ?? "WinApps")).Flex(grow: 1, basis: 0),
-                        selected is not null ? Component<ApplicationLaunchActions, ApplicationLaunchActionsProps>(new(selected, packageConfiguration))
-                            .WithKey(selected.FullName).Flex(shrink: 0) : Text("")),
+                        Slot("launch-actions", selected is not null ? Component<ApplicationLaunchActions, ApplicationLaunchActionsProps>(new(selected, packageConfiguration))
+                            .WithKey(selected.FullName) : Text("")).Flex(shrink: 0)),
                     TextBlock(selected?.Publisher ?? "Your installed applications, settings, and storage").TextWrapping().Foreground(Theme.SecondaryText),
                     HStack(8, new[] { "Overview", "Package", "Storage", "Settings", "LocalState" }.Select(tab =>
                         ToggleButton(tab, view == tab, enabled => { if (enabled) { Props.OnView(tab); } })
@@ -150,7 +146,8 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                             })
                             .CornerRadius(9).Padding(12)
                             .AutomationName($"View {tab}").IsEnabled(selected is not null && !busy).WithKey(tab)).ToArray()),
-                    TextBlock(status).TextWrapping().Foreground(Theme.SecondaryText), content
+                    TextBlock(status).TextWrapping().Foreground(Theme.SecondaryText),
+                    content.WithKey($"content-{selected?.FullName ?? "library"}-{view}")
                 ).Padding(28)).Flex(grow: 1, basis: 0);
     }
 }

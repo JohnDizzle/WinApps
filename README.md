@@ -16,6 +16,7 @@ WinApps is in active development.
 - Read-only JSON/XML inspection and bounded text previews.
 - Package launch actions, with UAC elevation when declared and supported.
 - Sun/moon theme toggle and separately mounted navigation, details, and setting editors.
+- Display-error recovery with retry, restart, and collapsed technical details.
 
 ## Build and run
 

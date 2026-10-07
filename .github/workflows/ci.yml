@@ -34,5 +34,7 @@ jobs:
         run: dotnet build MyApps.csproj --configuration Release --no-restore
       - name: Run portable inspection checks
         run: dotnet run --project tests/DataInspection/DataInspection.csproj --configuration Release
+      - name: Run native UI isolation and recovery checks
+        run: dotnet run --project tests/UiIntegration/UiIntegration.csproj --configuration Release
       - name: Check patch whitespace
         run: git diff --check

@@ -15,6 +15,7 @@ Services/
 tests/
   DataInspection/            Portable checks using synthetic files/settings
   PackageIntegration/        Read-only checks against locally installed Windows packages
+  UiIntegration/             Native control reconciliation and edit-isolation checks
 docs/                        Contributor-facing architecture and release notes
 .github/                     CI and contribution templates
 ```
@@ -26,3 +27,5 @@ docs/                        Contributor-facing architecture and release notes
 Library metadata is cached locally. Files, decoded settings, and manifest configuration are inspected live on selection. Resource packages are correlated by current-user package family and inspected separately. Manifest declarations do not prove binary UI framework usage or runtime token permissions.
 
 Keep Windows calls in services and pure parsers/codecs independently testable. Launch actions must resolve the selected registered application, and elevation must be checked again against the installed manifest before invoking UAC.
+
+`WinAppsShell` and the rail/detail boundaries contain display errors. Recovery panels offer retry, restart, and navigation with collapsed technical details. Conditional controls live in stable containers with native-type-specific child keys. Ordinary value changes preserve component identities; explicit retry rebuilds only the failed area.

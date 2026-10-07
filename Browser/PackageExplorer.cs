@@ -16,6 +16,7 @@ namespace MyApps.Browser;
 
 public sealed class PackageExplorer : Component
 {
+    private int _selectionVersion;
     public override Element Render()
     {
         var apps = UseState(Array.Empty<InstalledApp>());
@@ -30,8 +31,11 @@ public sealed class PackageExplorer : Component
         var view = UseState("Overview");
         var busy = UseState(false);
         var status = UseState("Loading your application library…");
+        var railAttempt = UseState(0);
+        var detailAttempt = UseState(0);
         void ClearSelection()
         {
+            _selectionVersion++;
             selected.Set(null); inventory.Set(null); settings.Set(null); file.Set(null);
             packageConfiguration.Set(null);
             footprint.Set(Array.Empty<FolderFootprint>());
@@ -87,19 +91,26 @@ public sealed class PackageExplorer : Component
         async void Select(InstalledApp app)
         {
             if (busy.Value) return;
+            var request = ++_selectionVersion;
             selected.Set(app); inventory.Set(null); settings.Set(null); file.Set(null); preview.Set("");
             packageConfiguration.Set(null);
             footprint.Set(Array.Empty<FolderFootprint>()); view.Set("Overview");
             busy.Set(true); status.Set("Inspecting Settings and LocalState…");
             try
             {
-                packageConfiguration.Set(await Task.Run(() => new PackageConfigurationReader().Read(app)));
-                inventory.Set(await Task.Run(() => new AppDataInspector().Inspect(app)));
-                settings.Set(await Task.Run(() => new PackageSettingsReader().Read(app.FamilyName)));
+                var configuration = await Task.Run(() => new PackageConfigurationReader().Read(app));
+                if (request != _selectionVersion) return;
+                packageConfiguration.Set(configuration);
+                var files = await Task.Run(() => new AppDataInspector().Inspect(app));
+                if (request != _selectionVersion) return;
+                inventory.Set(files);
+                var snapshot = await Task.Run(() => new PackageSettingsReader().Read(app.FamilyName));
+                if (request != _selectionVersion) return;
+                settings.Set(snapshot);
                 status.Set("Disk inventory loaded. Select a file to preview supported text formats.");
             }
-            catch (Exception ex) { status.Set($"Inspection failed: {ex.Message}"); }
-            finally { busy.Set(false); }
+            catch (Exception ex) { if (request == _selectionVersion) status.Set($"Inspection failed: {ex.Message}"); }
+            finally { if (request == _selectionVersion) busy.Set(false); }
         }
 
         async void Measure()
@@ -165,16 +176,30 @@ public sealed class PackageExplorer : Component
             .Background(Theme.LayerFill).WithBorder(Theme.CardStroke)
             .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, themeLabel));
         void OpenView(string next) { view.Set(next); file.Set(null); }
+        void RecoverList()
+        {
+            busy.Set(false);
+            ClearSelection();
+            railAttempt.Set(railAttempt.Value + 1);
+            detailAttempt.Set(detailAttempt.Value + 1);
+            status.Set("Choose an application from the list.");
+        }
         return FlexColumn(
             TitleBar("WinApps").Icon(FontIcon("\uE71D", "Segoe Fluent Icons"))
                 .RightHeader(themeToggle).AutoRefreshDragRegions(true).Flex(shrink: 0),
             FlexRow(
-                Component<ApplicationRail, ApplicationRailProps>(new(apps.Value, selected.Value, inventory.Value,
-                    view.Value, busy.Value, Select, Unselect, Scan, PreviewFile, OpenFile, OpenView)).WithKey("application-rail"),
-                Component<ApplicationDetailPane, ApplicationDetailPaneProps>(new(selected.Value, footprint.Value,
+                ErrorBoundary(Component<ApplicationRail, ApplicationRailProps>(new(apps.Value, selected.Value, inventory.Value,
+                    view.Value, busy.Value, Select, Unselect, Scan, PreviewFile, OpenFile, OpenView)).WithKey($"application-rail-{railAttempt.Value}"),
+                    error => Component<ErrorRecoveryPanel, ErrorRecoveryPanelProps>(new("Application list unavailable", error,
+                        () => railAttempt.Set(railAttempt.Value + 1), RecoverList)).Width(360))
+                    .WithKey("rail-boundary").Flex(shrink: 0),
+                ErrorBoundary(Component<ApplicationDetailPane, ApplicationDetailPaneProps>(new(selected.Value, footprint.Value,
                     inventory.Value, settings.Value, packageConfiguration.Value, file.Value, preview.Value,
                     view.Value, busy.Value, status.Value, OpenView, Measure, OpenFolder, OpenFile, PreviewFile))
-                    .WithKey("application-detail").Flex(grow: 1, basis: 0)
+                    .WithKey($"application-detail-{detailAttempt.Value}"),
+                    error => Component<ErrorRecoveryPanel, ErrorRecoveryPanelProps>(new("Application details unavailable", error,
+                        () => detailAttempt.Set(detailAttempt.Value + 1), RecoverList)))
+                    .WithKey("detail-boundary").Flex(grow: 1, basis: 0)
             ).Flex(grow: 1, basis: 0)
         ).RequestedTheme(theme.Value).Backdrop(BackdropKind.Mica);
     }

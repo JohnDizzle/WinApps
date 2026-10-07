@@ -26,11 +26,14 @@ internal sealed class ApplicationLaunchActions : Component<ApplicationLaunchActi
             HStack(8,
                 Button(HStack(6, FluentGlyph("\uE768"), TextBlock("Launch")), () => Launch(false))
                     .AutomationName($"Launch {Props.App.Name}").IsEnabled(!busy.Value && Props.App.FamilyName.Length > 0).CornerRadius(9).Padding(10),
-                Props.Configuration?.Launch?.AllowsElevation == true
-                    ? Button(HStack(6, FluentGlyph("\uE7BA"), TextBlock("Launch elevated")), () => Launch(true))
+                Button(HStack(6, FluentGlyph("\uE7BA"), TextBlock("Launch elevated")), () => Launch(true))
                         .AutomationName($"Launch {Props.App.Name} as administrator").IsEnabled(!busy.Value).CornerRadius(9).Padding(10)
-                        .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Manifest declares allowElevation. Windows will request administrator approval."))
-                    : Text("")),
+                        .Set(control =>
+                        {
+                            control.Visibility = Props.Configuration?.Launch?.AllowsElevation == true
+                                ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+                            Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Manifest declares allowElevation. Windows will request administrator approval.");
+                        }).WithKey("elevated-launch")),
             Text(message.Value));
     }
 }

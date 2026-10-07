@@ -1,13 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
-using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using MyApps.Models;
-using MyApps.Services.Inventory;
-using MyApps.Services.Storage;
-using MyApps.Services.Settings;
-using MyApps.Services.Packages;
 using static Microsoft.UI.Reactor.Factories;
 
 using static MyApps.Browser.BrowserUi;
@@ -69,8 +64,8 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                     ).HAlign(HorizontalAlignment.Stretch).WithKey(item.FullPath)).ToArray()
                     : new[] { Text("No files listed.") }), isExpanded: area == view).WithKey(area)).ToArray());
         var fileTree = VStack(8,
-            selected?.Source == "MSIX" ? ActionButton("Package · AppxManifest.xml", () => Props.OnView("Package")).IsEnabled(!busy) : Text(""),
-            dataFileTree);
+            Slot("manifest-link", selected?.Source == "MSIX" ? ActionButton("Package · AppxManifest.xml", () => Props.OnView("Package")).IsEnabled(!busy) : Text("")),
+            Slot("file-inventory", dataFileTree));
         // Keep the selected application's files inside its native ListView row.
         var selectedIndex = Array.FindIndex(visibleApps, app => app.FullName == selected?.FullName);
         var appList = ListView((int?)selectedIndex, index =>
@@ -90,11 +85,11 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                 AppIcon(app).Margin(right: 12).Flex(shrink: 0),
                 VStack(3, TextBlock(app.Name).SemiBold().TextWrapping(),
                     TextBlock(app.Source == "MSIX" ? "Packaged app" : "Desktop app").FontSize(12).Foreground(Theme.SecondaryText)).Flex(grow: 1, basis: 0)),
-            app.FullName == selected?.FullName
+            Slot("app-files", app.FullName == selected?.FullName
                 ? Disclosure("App files", fileTree, appFilesOpen.Value, expanded =>
                     { appFilesOpen.Set(expanded); if (expanded) appsListOpen.Set(false); })
                     .AutomationName($"Files for {app.Name}")
-                : Text("")
+                : Text(""))
         ).HAlign(HorizontalAlignment.Stretch).Padding(10).WithKey(app.FullName)).ToArray())
             .AutomationName("Alphabetical application list").IsEnabled(!busy).HAlign(HorizontalAlignment.Stretch)
             .Set(control =>
@@ -118,7 +113,7 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                 TextBlock($"{apps.Length} apps in your library").Foreground(Theme.SecondaryText),
                 TextBox(search.Value, search.Set, placeholderText: "Search your library").AutomationName("Search applications"),
                 ActionButton(busy ? "Working…" : "Refresh applications", Scan).AutomationName("Refresh applications").IsEnabled(!busy),
-                selected is not null ? ActionButton("Unselect application", Unselect).IsEnabled(!busy) : Text(""),
+                Slot("unselect", selected is not null ? ActionButton("Unselect application", Unselect).IsEnabled(!busy) : Text("")),
                 Disclosure("Open Apps List", keyboard, appsListOpen.Value, expanded =>
                     { appsListOpen.Set(expanded); if (expanded) appFilesOpen.Set(false); })
                     .AutomationName("Open Apps List"),

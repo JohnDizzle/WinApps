@@ -1,21 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-only
-using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using MyApps.Models;
-using MyApps.Services.Inventory;
-using MyApps.Services.Storage;
-using MyApps.Services.Settings;
-using MyApps.Services.Packages;
 using static Microsoft.UI.Reactor.Factories;
 
-using static MyApps.Browser.BrowserUi;
 
 namespace MyApps.Browser;
 
 internal static class BrowserUi
 {
+    // A stable panel owns conditional content; changing native kinds replaces its keyed child.
+    public static Element Slot(string name, Element child) => VStack(0,
+        child.WithKey($"{name}-{child.GetType().FullName}-{child.Key}")).WithKey(name);
     public static Element Text(string value) => TextBlock(value).TextWrapping();
     public static ExpanderElement Disclosure(string title, Element body, Optional<bool> isExpanded = default, Action<bool>? changed = null) =>
             Expander(title, body.HAlign(HorizontalAlignment.Stretch), isExpanded, changed)
@@ -28,6 +25,7 @@ internal static class BrowserUi
     public static Element Section(string title, params Element[] children) => Card(VStack(10,
             new[] { TextBlock(title).FontSize(20).Bold() }.Concat(children).ToArray()).Padding(24)).Background(Theme.CardBackground).WithBorder(Theme.CardStroke).CornerRadius(12);
     public static string ActionGlyph(string label) => label.StartsWith("Refresh") || label.StartsWith("Working") ? "\uE72C"
+            : label.StartsWith("Restart") || label.StartsWith("Try again") ? "\uE72C"
             : label.StartsWith("Unselect") ? "\uE711"
             : label.StartsWith("Save") ? "\uE74E"
             : label.StartsWith("Reset") || label.StartsWith("Reload") ? "\uE777"

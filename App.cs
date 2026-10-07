@@ -7,5 +7,5 @@ namespace MyApps.Application;
 internal static class Program
 {
     [STAThread]
-    private static void Main() => ReactorApp.Run<PackageExplorer>("WinApps", width: 1100, height: 780);
+    private static void Main() => ReactorApp.Run<WinAppsShell>("WinApps", width: 1100, height: 780);
 }
