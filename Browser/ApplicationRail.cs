@@ -21,15 +21,16 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
         var search = UseState("");
         var appsListOpen = UseState(true);
         var appFilesOpen = UseState(false);
+        var expandedAreas = UseState(Array.Empty<string>());
         var apps = Props.Apps;
         var selected = Props.Selected;
         var inventory = Props.Inventory;
-        var view = Props.View;
         var busy = Props.Busy;
         UseEffect(() =>
         {
             appsListOpen.Set(Props.Selected is null);
             appFilesOpen.Set(Props.Selected is not null);
+            expandedAreas.Set(Array.Empty<string>());
         }, Props.Selected?.FullName);
         void Select(AppTreeNode node) { if (node.App is not null) Props.OnSelect(node.App); }
         void Unselect() => Props.OnUnselect();
@@ -62,7 +63,12 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                         FilePreviewButton(item).Flex(grow: 1, basis: 0),
                         OpenFileButton(item).Margin(left: 4).Flex(shrink: 0)
                     ).HAlign(HorizontalAlignment.Stretch).WithKey(item.FullPath)).ToArray()
-                    : new[] { Text("No files listed.") }), isExpanded: area == view).WithKey(area)).ToArray());
+                    : new[] { Text("No files listed.") }), isExpanded: expandedAreas.Value.Contains(area), changed: expanded =>
+                    {
+                        var next = new HashSet<string>(expandedAreas.Value, StringComparer.Ordinal);
+                        if (expanded) next.Add(area); else next.Remove(area);
+                        expandedAreas.Set(next.ToArray());
+                    }).WithKey(area)).ToArray());
         var fileTree = VStack(8,
             Slot("manifest-link", selected?.Source == "MSIX" ? ActionButton("Package · AppxManifest.xml", () => Props.OnView("Package")).IsEnabled(!busy) : Text("")),
             Slot("file-inventory", dataFileTree));
