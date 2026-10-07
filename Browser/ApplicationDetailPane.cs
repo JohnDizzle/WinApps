@@ -126,6 +126,11 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
             }
         }
 
+        if (selected is not null && view == "Overview")
+            content = VStack(20, content,
+                Component<ApplicationManagementPanel, ApplicationManagementPanelProps>(new(selected))
+                    .WithKey($"management-{selected.FullName}"));
+
         return
                 ScrollView(VStack(20,
                     FlexRow(
