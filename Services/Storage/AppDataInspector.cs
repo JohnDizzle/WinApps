@@ -17,16 +17,33 @@ public sealed class AppDataInspector
         var notices = new List<string>();
         if (string.IsNullOrWhiteSpace(app.DataPath))
             return new(files, ["Desktop app data locations require an app-specific adapter; no package data path is known."]);
-        foreach (var area in new[] { "Settings", "LocalState" })
+        if (!string.IsNullOrWhiteSpace(app.FamilyName) && !string.IsNullOrWhiteSpace(app.InstallPath))
+            foreach (var name in new[] { "registry.dat", "user.dat", "userclasses.dat" })
+            {
+                var path = Path.Combine(app.InstallPath, name);
+                try
+                {
+                    if (!File.Exists(path)) continue;
+                    if (ContainsLink(path)) { notices.Add($"Link skipped: {path}"); continue; }
+                    var info = new FileInfo(path);
+                    if (files.Count >= MaxFiles) break;
+                    files.Add(new("Registry", $"Package/{name}", path, info.Length, info.LastWriteTimeUtc,
+                        "Packaged registry baseline · not decoded; separate from per-user changes"));
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                { notices.Add($"Unavailable registry baseline: {path} ({ex.Message})"); }
+            }
+        // Registry stores are independent of Windows ApplicationData settings.
+        foreach (var area in new[] { "Settings", "Registry", "LocalState" })
         {
-            var root = Path.Combine(app.DataPath, area);
+            var root = DataFolder(app.DataPath, area);
             var pending = new Stack<string>();
             pending.Push(root);
             while (pending.TryPop(out var folder))
             {
                 try
                 {
-                    if ((File.GetAttributes(folder) & FileAttributes.ReparsePoint) != 0)
+                    if (ContainsLink(folder))
                     { notices.Add($"Link skipped: {folder}"); continue; }
                     foreach (var path in Directory.EnumerateFileSystemEntries(folder))
                     {
@@ -56,15 +73,46 @@ public sealed class AppDataInspector
         return new(files.OrderBy(f => f.Area).ThenBy(f => f.RelativePath, StringComparer.OrdinalIgnoreCase).ToArray(), notices);
     }
 
-    public static string Kind(string path) => Path.GetFileName(path).Equals("settings.dat", StringComparison.OrdinalIgnoreCase)
+    public static string DataFolder(string dataPath, string area) => area == "Registry"
+        ? Path.Combine(dataPath, "SystemAppData", "Helium") : Path.Combine(dataPath, area);
+
+    private static bool ContainsLink(string path)
+    {
+        for (var current = path; current is not null; current = Path.GetDirectoryName(current))
+            if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0) return true;
+        return false;
+    }
+
+    public static string Kind(string path)
+    {
+        try
+        {
+            if (File.Exists(path) && !ContainsLink(path))
+            {
+                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                Span<byte> header = stackalloc byte[16];
+                var read = stream.ReadAtLeast(header, header.Length, throwOnEndOfStream: false);
+                if (read == 16 && header.SequenceEqual("SQLite format 3\0"u8))
+                    return "SQLite database · header identified; tables not inspected";
+                if (read >= 4 && header[..4].SequenceEqual("regf"u8))
+                    return Path.GetFileName(path).Equals("settings.dat", StringComparison.OrdinalIgnoreCase)
+                        ? "Windows ApplicationData settings store · decoded through Windows"
+                        : "Windows registry hive · not decoded";
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* Metadata still remains available. */ }
+        if (Path.GetFileName(path).ToLowerInvariant() is "user.dat" or "userclasses.dat" or "registry.dat")
+            return "Registry hive candidate · format unverified; not decoded";
+        return Path.GetFileName(path).Equals("settings.dat", StringComparison.OrdinalIgnoreCase)
         ? "Windows binary settings store"
         : Path.GetExtension(path).ToLowerInvariant() switch
         {
             ".json" => "JSON configuration", ".xml" or ".config" => "XML / configuration",
-            ".db" or ".sqlite" or ".sqlite3" => "Database (format unverified)",
+            ".db" or ".db3" or ".sqlite" or ".sqlite3" or ".mdb" or ".accdb" or ".edb" => "Database (format unverified)",
             ".txt" or ".log" or ".ini" or ".yaml" or ".yml" or ".csv" => "Text / log",
             ".png" or ".jpg" or ".jpeg" or ".webp" => "Image", _ => "Binary / unknown"
         };
+    }
 
     public string Preview(AppDataFile file)
     {

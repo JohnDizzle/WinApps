@@ -20,7 +20,6 @@ public sealed class PackageExplorer : Component
     public override Element Render()
     {
         var apps = UseState(Array.Empty<InstalledApp>());
-        var theme = UseState(ElementTheme.Default);
         var selected = UseState<InstalledApp?>(null);
         var footprint = UseState(Array.Empty<FolderFootprint>());
         var inventory = UseState<AppDataInventory?>(null);
@@ -167,14 +166,6 @@ public sealed class PackageExplorer : Component
             catch (Exception ex) { status.Set($"Cannot open file with its default application: {ex.Message}"); }
         }
 
-        var darkTheme = theme.Value == ElementTheme.Dark || (theme.Value == ElementTheme.Default &&
-            Microsoft.UI.Xaml.Application.Current.RequestedTheme == ApplicationTheme.Dark);
-        var themeLabel = darkTheme ? "Switch to light theme" : "Switch to dark theme";
-        var themeToggle = Button(FluentGlyph(darkTheme ? "\uE706" : "\uE708", 20),
-            () => theme.Set(darkTheme ? ElementTheme.Light : ElementTheme.Dark)).AutomationName(themeLabel)
-            .Width(36).Height(36).Padding(0).CornerRadius(10)
-            .Background(Theme.LayerFill).WithBorder(Theme.CardStroke)
-            .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, themeLabel));
         void OpenView(string next) { view.Set(next); file.Set(null); }
         void RecoverList()
         {
@@ -185,8 +176,6 @@ public sealed class PackageExplorer : Component
             status.Set("Choose an application from the list.");
         }
         return FlexColumn(
-            TitleBar("WinApps").Icon(FontIcon("\uE71D", "Segoe Fluent Icons"))
-                .RightHeader(themeToggle).AutoRefreshDragRegions(true).Flex(shrink: 0),
             FlexRow(
                 ErrorBoundary(Component<ApplicationRail, ApplicationRailProps>(new(apps.Value, selected.Value, inventory.Value,
                     view.Value, busy.Value, Select, Unselect, Scan, PreviewFile, OpenFile, OpenView)).WithKey($"application-rail-{railAttempt.Value}"),
@@ -201,6 +190,6 @@ public sealed class PackageExplorer : Component
                         () => detailAttempt.Set(detailAttempt.Value + 1), RecoverList)))
                     .WithKey("detail-boundary").Flex(grow: 1, basis: 0)
             ).Flex(grow: 1, basis: 0)
-        ).RequestedTheme(theme.Value).Backdrop(BackdropKind.Mica);
+        );
     }
 }

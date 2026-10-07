@@ -92,6 +92,18 @@ public sealed class PackageManifestInspector
             sections.Add(new(title, string.Join("\n\n", group.Select(element => element.ToString()))));
         }
         sections.Add(new("Manifest namespaces and compatibility", string.Join("\n", root.Attributes().Select(attribute => $"{attribute.Name}: {attribute.Value}"))));
+        var desktop6 = (XNamespace)"http://schemas.microsoft.com/appx/manifest/desktop/windows10/6";
+        var virtualization = (XNamespace)"http://schemas.microsoft.com/appx/manifest/virtualization/windows10";
+        var overrides = root.Element(ns + "Properties")?.Elements().Where(item =>
+            (item.Name.Namespace == desktop6 || item.Name.Namespace == virtualization) &&
+            item.Name.LocalName is "RegistryWriteVirtualization" or "FileSystemWriteVirtualization").ToArray() ?? [];
+        var unvirtualized = root.Element(ns + "Capabilities")?.Elements(Restricted + "Capability")
+            .Any(item => (string?)item.Attribute("Name") == "unvirtualizedResources") == true;
+        sections.Add(new("Registry and filesystem virtualization",
+            $"unvirtualizedResources capability declared: {unvirtualized}\n" +
+            (overrides.Length == 0 ? "No explicit virtualization overrides declared. Windows runtime/OS defaults apply; this does not establish that no private registry hive exists."
+                : string.Join("\n\n", overrides.Select(item => item.ToString()))) +
+            "\nThe manifest does not enumerate settings keys or database files. Packaged registry baselines and per-user virtual registry changes are separate stores; see the Registry view for discovered files."));
         notices.Add("Capabilities are package declarations, not a report of granted permissions. Extension activation can override the application trust/runtime. Runtime process tokens and UI framework binaries are not inspected.");
         var allowsElevation = selected is not null && classification.trust.StartsWith("mediumIL", StringComparison.Ordinal) &&
             (classification.runtime.StartsWith("Packaged desktop", StringComparison.Ordinal) || classification.runtime.StartsWith("Win32", StringComparison.Ordinal)) &&

@@ -52,6 +52,16 @@ public sealed partial class ChecksApplication : Application
                 if (!value) throw new InvalidOperationException(message);
                 checks++;
             }
+            foreach (var requestedTheme in new[] { ElementTheme.Light, ElementTheme.Dark })
+            {
+                var frame = WinAppsShell.WindowFrame(requestedTheme, TextBlock("Title"),
+                    ErrorBoundary(TextBlock("Content"), _ => TextBlock("Recovery")));
+                Check(frame.Modifiers?.Backdrop?.Kind == BackdropKind.Mica,
+                    "Mica must be declared on the window root, outside the recovery boundary.");
+                var frameNative = (FrameworkElement)reconciler.Mount(frame, () => { })!;
+                Check(frameNative.RequestedTheme == requestedTheme,
+                    "The window root must own the selected theme for all descendants.");
+            }
             var app = new InstalledApp("Fixture", "fixture-family", "fixture-family!App", "Publisher", "1", "", "");
             Element Launch(bool elevated) => Component<ApplicationLaunchActions, ApplicationLaunchActionsProps>(new(app,
                 new("", "", "", "", [], "", [], Launch: new("App", "fixture.exe", elevated)))).WithKey("launch");
@@ -84,7 +94,7 @@ public sealed partial class ChecksApplication : Application
                 .WithKey("detail");
             old = Detail(null, "Overview"); native = reconciler.Mount(old, () => { })!;
             foreach (var (selected, view) in new (InstalledApp?, string)[] { (app, "Overview"), (app, "Settings"),
-                (app, "LocalState"), (app, "Package"), (app, "Storage"), (null, "Overview") })
+                (app, "LocalState"), (app, "Registry"), (app, "Package"), (app, "Storage"), (null, "Overview") })
             {
                 var next = Detail(selected, view);
                 var updated = reconciler.Reconcile(old, next, native, () => { })!;

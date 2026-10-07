@@ -81,6 +81,21 @@ try
         </Package>
         """;
     var parser = new PackageManifestInspector();
+    var defaultVirtualization = parser.Parse(manifest, "Desktop");
+    Check(defaultVirtualization.Sections.Any(item => item.Title == "Registry and filesystem virtualization" && item.Details.Contains("defaults apply")),
+        "Absent virtualization overrides must not imply that no hive exists");
+    var withVirtualization = manifest.Replace("<Dependencies>", "<Properties xmlns:d6=\"http://schemas.microsoft.com/appx/manifest/desktop/windows10/6\"><d6:RegistryWriteVirtualization>disabled</d6:RegistryWriteVirtualization></Properties><Dependencies>")
+        .Replace("<rescap:Capability Name=\"runFullTrust\" />", "<rescap:Capability Name=\"unvirtualizedResources\" />");
+    Check(parser.Parse(withVirtualization, "Desktop").Sections.Any(item => item.Title == "Registry and filesystem virtualization" && item.Details.Contains("disabled") && item.Details.Contains("declared: True")),
+        "Declared virtualization overrides and capability must be reported");
+    var sqlitePath = Path.Combine(root, "extensionless-store");
+    File.WriteAllBytes(sqlitePath, "SQLite format 3\0"u8.ToArray());
+    Check(AppDataInspector.Kind(sqlitePath).StartsWith("SQLite database"), "SQLite detection must not depend on a filename extension");
+    Check(File.ReadAllBytes(sqlitePath).SequenceEqual("SQLite format 3\0"u8.ToArray()), "Signature inspection must not modify database files");
+    var hivePath = Path.Combine(root, "User.dat");
+    File.WriteAllBytes(hivePath, "regfsynthetic-test"u8.ToArray());
+    Check(AppDataInspector.Kind(hivePath).StartsWith("Windows registry hive"), "Registry header identification must remain distinct from ApplicationData");
+    Check(AppDataInspector.DataFolder(root, "Registry") == Path.Combine(root, "SystemAppData", "Helium"), "Registry stores must be discovered outside the Settings folder");
     Check(SettingNumericValue.TryStep("UInt64", "18446744073709551614", 1, out var exactInteger) && exactInteger == "18446744073709551615", "64-bit numeric stepping must preserve all digits");
     Check(!SettingNumericValue.TryStep("UInt64", "18446744073709551615", 1, out _), "Unsigned overflow must disable stepping");
     Check(!SettingNumericValue.TryStep("UInt64", "0", -1, out _), "Unsigned underflow must disable stepping");

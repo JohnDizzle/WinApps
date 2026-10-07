@@ -56,7 +56,7 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                 .IsEnabled(key == "All" || matches.Any(app => Initial(app) == key)).WithKey(key)).ToArray())
                 .WithKey($"letters-{index}")).ToArray());
         var dataFileTree = inventory is null ? Text(busy ? "Loading application files…" : "Application files are unavailable.")
-            : VStack(8, new[] { "Settings", "LocalState" }.Select(area => Disclosure(area,
+            : VStack(8, new[] { "Settings", "Registry", "LocalState" }.Select(area => Disclosure(area,
                 VStack(4, inventory.Files.Any(item => item.Area == area)
                     ? inventory.Files.Where(item => item.Area == area).Select(item => FlexRow(
                         FilePreviewButton(item).Flex(grow: 1, basis: 0),

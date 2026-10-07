@@ -41,3 +41,11 @@ Selecting Settings/settings.dat refreshes the live decoded package settings. Thi
 WinApps discovers desktop applications from registered installations and Start Menu shortcuts. Packaged applications appear with their own names and icons.
 
 Use Launch beside the selected application's heading to open a registered packaged app. Launch elevated appears when its package declares supported elevation; Windows then requests administrator approval. Launch is unavailable for desktop entries without a known package activation identity.
+
+## Virtual registry and databases
+
+The Registry view inventories per-user stores under `SystemAppData/Helium` and known registry baseline files in the installed package. Baselines and per-user changes are shown separately. Hive files are identified by their signature where readable; keys and values are not decoded or editable. These stores are independent of the ApplicationData settings editor.
+
+The package view reports declared registry/filesystem virtualization options and exclusions. An absent override means Windows runtime defaults apply; it does not establish that no private registry exists. A manifest does not enumerate every settings file or database.
+
+LocalState files with a SQLite signature are identified even without a database extension. Other database extensions are marked as unverified. Database tables are not inspected or editable; database adapters remain planned work. Discovery reads metadata and file headers without modifying files.

@@ -10,6 +10,8 @@ public sealed class FootprintScanner
         var results = new List<FolderFootprint> { Measure("Installed package", app.InstallPath) };
         if (!string.IsNullOrWhiteSpace(app.DataPath)) foreach (var name in new[] { "Settings", "LocalState", "RoamingState", "LocalCache", "AC", "TempState" })
             results.Add(Measure(name == "TempState" ? "TempState (temporary)" : name, Path.Combine(app.DataPath, name)));
+        if (!string.IsNullOrWhiteSpace(app.DataPath))
+            results.Add(Measure("Virtual registry", AppDataInspector.DataFolder(app.DataPath, "Registry")));
         return results;
     }
 
@@ -52,4 +54,3 @@ public sealed class FootprintScanner
         return new(label, path, bytes, files, skipped, skipped == 0 ? "Measured" : "Partial");
     }
 }
-

@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using MyApps.Models;
+using MyApps.Services.Storage;
 using static Microsoft.UI.Reactor.Factories;
 
 using static MyApps.Browser.BrowserUi;
@@ -100,14 +101,18 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
             {
                 var area = view;
                 var files = inventory?.Files.Where(item => item.Area == area).ToArray() ?? [];
-                var folder = string.IsNullOrEmpty(selected.DataPath) ? "" : Path.Combine(selected.DataPath, area);
-                content = Section(area == "Settings" ? "Package settings files" : "LocalState · persistent application data",
+                var folder = string.IsNullOrEmpty(selected.DataPath) ? "" : AppDataInspector.DataFolder(selected.DataPath, area);
+                content = Section(area switch { "Settings" => "Package settings files", "Registry" => "Virtual registry stores", _ => "LocalState · persistent application data" },
                     Text(folder.Length == 0 ? "No known package data directory for this desktop application." : folder),
                     ActionButton("Open folder", () => OpenFolder(folder)).IsEnabled(folder.Length > 0),
-                    Text(area == "Settings" ? "Values below are read through Windows ApplicationData for this package. Stored encrypted strings remain encrypted."
-                        : "Explore configuration, databases, logs, images, and other files stored by the application."),
+                    Text(area switch
+                    {
+                        "Settings" => "Values below are read through Windows ApplicationData for this package. Stored encrypted strings remain encrypted.",
+                        "Registry" => "Per-user virtual registry hives and packaged baselines are separate from ApplicationData settings. Hive keys and values are not decoded or editable yet. A classes hive can contain registrations rather than preferences.",
+                        _ => "Explore configuration, databases, logs, images, and other files stored by the application. SQLite headers are identified; database tables are not inspected or editable yet."
+                    }),
                     area == "Settings" ? Component<PackageSettingsPanel, PackageSettingsPanelProps>(
-                        new(selected.FamilyName, settings, busy)).WithKey($"settings-{selected.FamilyName}") : Text("LocalState file inventory"),
+                        new(selected.FamilyName, settings, busy)).WithKey($"settings-{selected.FamilyName}") : Text($"{area} file inventory"),
                     Text($"{files.Length} files · {files.Sum(item => item.Bytes) / 1048576d:N2} MiB listed"),
                     VStack(6, files.Select(item => FlexRow(
                         FilePreviewButton(item, showDetails: true).Flex(grow: 1, basis: 0),
@@ -129,7 +134,7 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                         Slot("launch-actions", selected is not null ? Component<ApplicationLaunchActions, ApplicationLaunchActionsProps>(new(selected, packageConfiguration))
                             .WithKey(selected.FullName) : Text("")).Flex(shrink: 0)),
                     TextBlock(selected?.Publisher ?? "Your installed applications, settings, and storage").TextWrapping().Foreground(Theme.SecondaryText),
-                    HStack(8, new[] { "Overview", "Package", "Storage", "Settings", "LocalState" }.Select(tab =>
+                    HStack(8, new[] { "Overview", "Package", "Storage", "Settings", "Registry", "LocalState" }.Select(tab =>
                         ToggleButton(tab, view == tab, enabled => { if (enabled) { Props.OnView(tab); } })
                             .Set(control =>
                             {
@@ -138,7 +143,7 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                                 panel.Tag = tab;
                                 panel.Children.Add(new Microsoft.UI.Xaml.Controls.FontIcon
                                 {
-                                    Glyph = tab switch { "Overview" => "\uE946", "Package" => "\uE7B8", "Storage" => "\uEDA2", "Settings" => "\uE713", _ => "\uE8B7" },
+                                    Glyph = tab switch { "Overview" => "\uE946", "Package" => "\uE7B8", "Storage" => "\uEDA2", "Settings" => "\uE713", "Registry" => "\uE8F1", _ => "\uE8B7" },
                                     FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Segoe Fluent Icons"), FontSize = 14
                                 });
                                 panel.Children.Add(new Microsoft.UI.Xaml.Controls.TextBlock { Text = tab });
