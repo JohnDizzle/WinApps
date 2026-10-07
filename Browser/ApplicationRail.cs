@@ -80,7 +80,8 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                     if (isChecked && app.FullName != selected?.FullName)
                         Select(new AppTreeNode(app.FullName, app.Name, app, Array.Empty<AppTreeNode>()));
                     else if (!isChecked && app.FullName == selected?.FullName) Unselect();
-                }).AutomationName($"Select or unselect {app.Name}").IsEnabled(!busy)
+                }).AutomationName($"Unselect {app.Name}").IsEnabled(!busy)
+                    .IsVisible(app.FullName == selected?.FullName)
                     .MinWidth(0).Width(24).Padding(0).Margin(right: 8).Flex(shrink: 0),
                 AppIcon(app).Margin(right: 12).Flex(shrink: 0),
                 VStack(3, TextBlock(app.Name).SemiBold().TextWrapping(),
