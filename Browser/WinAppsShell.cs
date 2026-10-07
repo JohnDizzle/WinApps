@@ -20,8 +20,8 @@ internal sealed class WinAppsShell : Component
             Microsoft.UI.Xaml.Application.Current.RequestedTheme == ApplicationTheme.Dark);
         var themeLabel = darkTheme ? "Switch to light theme" : "Switch to dark theme";
         var themeToggle = Button(FluentGlyph(darkTheme ? "\uE706" : "\uE708", 20),
-            () => theme.Set(darkTheme ? ElementTheme.Light : ElementTheme.Dark)).AutomationName(themeLabel)
-            .Width(36).Height(36).Padding(0).CornerRadius(10)
+            () => theme.Set(darkTheme ? ElementTheme.Light : ElementTheme.Dark))
+            .Width(36).Height(36).Padding(0).CornerRadius(10).AutomationName(themeLabel)
             .Background(Theme.LayerFill).WithBorder(Theme.CardStroke)
             .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, themeLabel));
 
@@ -31,11 +31,14 @@ internal sealed class WinAppsShell : Component
                 .PaneToggleButtonVisible(true)
                 .Set(control =>
                 {
+                    control.Resources["TitleBarMinDragRegionWidth"] = 8d;
+                    control.LeftHeader ??= new Microsoft.UI.Xaml.Controls.Border { Width = 10 };
                     if (control.Tag as string == "navigation-toggle") return;
                     control.Tag = "navigation-toggle";
                     control.PaneToggleRequested += (_, _) => _toggleNavigation?.Invoke();
                 })
-                .RightHeader(themeToggle).AutoRefreshDragRegions(true).Flex(shrink: 0),
+                .RightHeader(themeToggle.HAlign(HorizontalAlignment.Right))
+                .AutoRefreshDragRegions(true).Flex(shrink: 0),
             ErrorBoundary(Component<PackageExplorer, PackageExplorerProps>(new(navigationVisible.Value)).WithKey($"explorer-{attempt.Value}"), error =>
                 Component<ErrorRecoveryPanel, ErrorRecoveryPanelProps>(new("WinApps couldn't display this view", error,
                     () => attempt.Set(attempt.Value + 1), null)))
