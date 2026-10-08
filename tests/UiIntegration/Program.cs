@@ -66,8 +66,8 @@ public sealed partial class ChecksApplication : Application
                     "The settings card must show the running version and author.");
                 var frame = WinAppsShell.WindowFrame(requestedTheme, TextBlock("Title"),
                     ErrorBoundary(TextBlock("Content"), _ => TextBlock("Recovery")));
-                Check(frame.Modifiers?.Backdrop?.Kind == BackdropKind.Mica,
-                    "Mica must be declared on the window root, outside the recovery boundary.");
+                Check(frame.Modifiers?.Backdrop?.Kind == BackdropKind.MicaAlt,
+                    "Mica Alt must be the default on the window root, outside the recovery boundary.");
                 var frameNative = (FrameworkElement)reconciler.Mount(frame, () => { })!;
                 Check(frameNative.RequestedTheme == requestedTheme,
                     "The window root must own the selected theme for all descendants.");

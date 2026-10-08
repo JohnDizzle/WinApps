@@ -17,7 +17,7 @@ WinApps is in active development. Release builds are self-contained, including b
 - Package launch actions, with UAC elevation when declared and supported, and confirmed current-user package uninstall.
 - Windows app-management settings access for repair, reset, and uninstall where supported.
 - Registry hive discovery and SQLite signature identification, with inspection limits shown.
-- Mica window material, sun/moon theme toggle and separately mounted navigation, details, and setting editors.
+- Mica Alt window material by default, theme switching and separately mounted navigation, details, and setting editors.
 - Display-error recovery with retry, restart, and collapsed technical details.
 
 ## Build and run

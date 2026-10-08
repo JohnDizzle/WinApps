@@ -14,7 +14,7 @@ internal sealed class WinAppsShell : Component
     {
         var attempt = UseState(0);
         var theme = UseState(ElementTheme.Default);
-        var backdrop = UseState(BackdropKind.Mica);
+        var backdrop = UseState(BackdropKind.MicaAlt);
         var navigationVisible = UseState(true);
         var window = UseWindow();
         _toggleNavigation = () => navigationVisible.Set(!navigationVisible.Value);
@@ -66,7 +66,7 @@ internal sealed class WinAppsShell : Component
                 .WithKey("app-recovery").Flex(grow: 1, basis: 0)
         , backdrop.Value);
     }
-    internal static Element WindowFrame(ElementTheme theme, Element titleBar, Element content, BackdropKind backdrop = BackdropKind.Mica) =>
+    internal static Element WindowFrame(ElementTheme theme, Element titleBar, Element content, BackdropKind backdrop = BackdropKind.MicaAlt) =>
         FlexColumn(titleBar, content).RequestedTheme(theme).Backdrop(backdrop)
             .Set(control =>
             {
