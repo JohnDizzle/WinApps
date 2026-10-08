@@ -35,6 +35,18 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
             try { UiResources.Reload(); resourceVersion.Set(resourceVersion.Value + 1); resourceStatus.Set("Resources reloaded."); Props.OnReloadApplication?.Invoke(); }
             catch (Exception error) { resourceStatus.Set($"Resources were not changed: {error.Message}"); }
         }
+        void OpenFeatures()
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory, "features.html"))
+                    { UseShellExecute = true });
+            }
+            catch (Exception)
+            {
+                resourceStatus.Set("Couldn't open Features. Check your default browser and try again.");
+            }
+        }
         ButtonElement DocumentationLink(string key)
         {
             var link = UiResources.Current.Links[key];
@@ -59,7 +71,10 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
         void OpenFile(AppDataFile item) => Props.OnOpenFile(item);
         ButtonElement FilePreviewButton(AppDataFile item, bool showDetails = false) => BrowserUi.FilePreviewButton(item, Props.OnPreviewFile, busy, showDetails);
         Element OpenFileButton(AppDataFile item) => BrowserUi.OpenFileButton(item, Props.OnOpenFile, busy);
-        Element content = Section("Your library", Text("Browse the application tree, then select an app to explore its settings and stored data."));
+        Element content = Section("Explore your applications",
+            Text("Browse installed apps, inspect package details and local files, and edit supported settings with an explicit Save."),
+            TextBlock("Select an application from the list to get started.").TextWrapping().Foreground(Theme.SecondaryText),
+            GlassButton(ActionButton("Features & getting started", OpenFeatures)).HAlign(HorizontalAlignment.Left));
         if (selected is not null)
         {
             if (view == "Overview")
