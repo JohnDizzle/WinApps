@@ -31,17 +31,21 @@ internal static class SettingsFlyout
         choices.SelectedIndex = Array.IndexOf(kinds, backdrop);
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(choices, "Backdrop");
         content.Children.Add(choices);
-        var resources = Microsoft.UI.Xaml.Application.Current.Resources;
-        Brush Brush(string key) => (Brush)resources[key];
-        content.Children.Add(new Border
+        var separator = new Border
         {
-            Height = 1, Background = Brush("DividerStrokeColorDefaultBrush"), Margin = new Thickness(0, 4, 0, 4)
-        });
+            Height = 1, Margin = new Thickness(0, 4, 0, 4)
+        };
+        BindTheme(separator, ("Background", "DividerStrokeColorDefaultBrush"));
+        content.Children.Add(separator);
         var details = new StackPanel { Spacing = 6 };
         details.Children.Add(new TextBlock { Text = "WinApps", FontSize = 18, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
-        details.Children.Add(new TextBlock { Text = $"Version {Version()}", FontSize = 12, Foreground = Brush("TextFillColorSecondaryBrush") });
+        var versionLabel = new TextBlock { Text = $"Version {Version()}", FontSize = 12 };
+        BindTheme(versionLabel, ("Foreground", "TextFillColorSecondaryBrush"));
+        details.Children.Add(versionLabel);
         details.Children.Add(new TextBlock { Text = "John M. Doyle", FontSize = 14 });
-        details.Children.Add(new TextBlock { Text = "Free & open source · GPL-3.0-only", FontSize = 12, Foreground = Brush("TextFillColorSecondaryBrush") });
+        var licenseLabel = new TextBlock { Text = "Free & open source · GPL-3.0-only", FontSize = 12 };
+        BindTheme(licenseLabel, ("Foreground", "TextFillColorSecondaryBrush"));
+        details.Children.Add(licenseLabel);
         var links = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 4, 0, 0) };
         var notice = new TextBlock { FontSize = 12, TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
         void Open(string target)
@@ -68,12 +72,13 @@ internal static class SettingsFlyout
         links.Children.Add(license);
         details.Children.Add(links);
         details.Children.Add(notice);
-        content.Children.Add(new Border
+        var card = new Border
         {
             Child = details, Padding = new Thickness(16), CornerRadius = new CornerRadius(12),
-            Background = Brush("CardBackgroundFillColorDefaultBrush"),
-            BorderBrush = Brush("CardStrokeColorDefaultBrush"), BorderThickness = new Thickness(1)
-        });
+            BorderThickness = new Thickness(1)
+        };
+        BindTheme(card, ("Background", "CardBackgroundFillColorDefaultBrush"), ("BorderBrush", "CardStrokeColorDefaultBrush"));
+        content.Children.Add(card);
         var flyout = new Flyout
         {
             Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.BottomEdgeAlignedRight,
@@ -85,6 +90,15 @@ internal static class SettingsFlyout
             if (choices.SelectedIndex >= 0) { flyout.Hide(); setBackdrop(kinds[choices.SelectedIndex]); }
         };
         return flyout;
+    }
+
+    // Use native ThemeResource setters so popup colors follow light/dark and contrast changes.
+    private static void BindTheme(FrameworkElement control, params (string Property, string Resource)[] bindings)
+    {
+        var setters = string.Concat(bindings.Select(binding =>
+            $"<Setter Property='{binding.Property}' Value='{{ThemeResource {binding.Resource}}}' />"));
+        control.Style = (Style)Microsoft.UI.Xaml.Markup.XamlReader.Load(
+            $"<Style xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' TargetType='{control.GetType().Name}'>{setters}</Style>");
     }
 
     private static string Version()

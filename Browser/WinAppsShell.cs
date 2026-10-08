@@ -68,5 +68,9 @@ internal sealed class WinAppsShell : Component
     }
     internal static Element WindowFrame(ElementTheme theme, Element titleBar, Element content, BackdropKind backdrop = BackdropKind.Mica) =>
         FlexColumn(titleBar, content).RequestedTheme(theme).Backdrop(backdrop)
-            .Set(control => BrowserMotion.AppearanceTransition(control, $"{theme}-{backdrop}"));
+            .Set(control =>
+            {
+                AppearanceResources.Apply(control);
+                BrowserMotion.AppearanceTransition(control, $"{theme}-{backdrop}");
+            });
 }

@@ -71,6 +71,18 @@ public sealed partial class ChecksApplication : Application
                 var frameNative = (FrameworkElement)reconciler.Mount(frame, () => { })!;
                 Check(frameNative.RequestedTheme == requestedTheme,
                     "The window root must own the selected theme for all descendants.");
+                var surfaces = frameNative.Resources.MergedDictionaries.Single(dictionary => dictionary.ThemeDictionaries.ContainsKey("HighContrast"));
+                var themeSurfaces = (ResourceDictionary)surfaces.ThemeDictionaries[requestedTheme.ToString()];
+                Check(((Microsoft.UI.Xaml.Media.SolidColorBrush)themeSurfaces["CardBackgroundFillColorDefaultBrush"]).Color.A < 128,
+                    "Cards must use translucent root resources so the backdrop remains visible.");
+                var contrastSurfaces = (ResourceDictionary)surfaces.ThemeDictionaries["HighContrast"];
+                Check(((Microsoft.UI.Xaml.Media.SolidColorBrush)contrastSurfaces["CardBackgroundFillColorDefaultBrush"]).Color.A == 255,
+                    "High-contrast cards must remain opaque.");
+                foreach (var kind in new[] { BackdropKind.Mica, BackdropKind.DesktopAcrylic, BackdropKind.MicaAlt })
+                {
+                    var nextFrame = WinAppsShell.WindowFrame(requestedTheme, TextBlock("Title"), TextBlock("Content"), kind);
+                    Check(nextFrame.Modifiers?.Backdrop?.Kind == kind, "The selected material must be set only on the root.");
+                }
             }
             var app = new InstalledApp("Fixture", "fixture-family", "fixture-family!App", "Publisher", "1", "", "");
             var railApps = new[] { app };
