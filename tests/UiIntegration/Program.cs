@@ -52,6 +52,25 @@ public sealed partial class ChecksApplication : Application
                 if (!value) throw new InvalidOperationException(message);
                 checks++;
             }
+            var placementPath = Path.GetFullPath(Path.Combine("artifacts", "window-placement-check-" + Guid.NewGuid().ToString("N") + ".json"));
+            var placementStore = new MyApps.Services.Storage.WindowPlacementStore(placementPath);
+            Check(placementStore.Save(new(-500, -500, 100, 100)) is null, "Placement fixture must save successfully.");
+            WindowPlacementController.Attach(_window, placementStore);
+            WindowPlacementController.Attach(_window, placementStore);
+            var workArea = NativeMonitor.WorkArea(0, 0);
+            Check(_window.AppWindow.Position.X >= 0 && _window.AppWindow.Position.Y >= 0,
+                "Native window startup must correct negative saved coordinates without display enumeration.");
+            _window.AppWindow.Resize(new Windows.Graphics.SizeInt32(100, 100));
+            _window.AppWindow.Move(new Windows.Graphics.PointInt32(workArea.X + 8, workArea.Y + 8));
+            await new UiDelay(500);
+            Check(_window.AppWindow.Size.Width >= Math.Min(768, workArea.Width) &&
+                _window.AppWindow.Size.Height >= Math.Min(960, workArea.Height),
+                "Native window resizing must enforce the minimum dimensions that fit the screen.");
+            var restoredPlacement = placementStore.Load();
+            Check(restoredPlacement is { X: >= 0, Y: >= 0 } && restoredPlacement.Width == _window.AppWindow.Size.Width,
+                "Native placement changes must persist validated bounds.");
+            File.AppendAllText("artifacts/ui-checks.log", "Passed native window placement checks.\n");
+            Console.WriteLine("Passed native window placement checks.");
             foreach (var requestedTheme in new[] { ElementTheme.Light, ElementTheme.Dark })
             {
                 var settings = SettingsFlyout.Create(requestedTheme, requestedTheme == ElementTheme.Dark,

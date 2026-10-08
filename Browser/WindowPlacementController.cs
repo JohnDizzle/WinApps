@@ -10,21 +10,22 @@ internal sealed class WindowPlacementController
 {
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Window, WindowPlacementController> Controllers = new();
     private readonly Window _window;
-    private readonly WindowPlacementStore _store = new();
+    private readonly WindowPlacementStore _store;
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(350) };
     private WindowPlacement _normal;
     private bool _maximized;
     private bool _adjusting;
 
-    internal static void Attach(Window window)
+    internal static void Attach(Window window, WindowPlacementStore? store = null)
     {
         if (Controllers.TryGetValue(window, out _)) return;
-        Controllers.Add(window, new WindowPlacementController(window));
+        Controllers.Add(window, new WindowPlacementController(window, store ?? new WindowPlacementStore()));
     }
 
-    private WindowPlacementController(Window window)
+    private WindowPlacementController(Window window, WindowPlacementStore store)
     {
         _window = window;
+        _store = store;
         var app = window.AppWindow;
         var saved = _store.Load() ?? new WindowPlacement(Math.Max(0, app.Position.X), Math.Max(0, app.Position.Y),
             WindowPlacementStore.DefaultWidth, WindowPlacementStore.MinimumHeight);
@@ -47,22 +48,15 @@ internal sealed class WindowPlacementController
 
     private WindowPlacement Fit(WindowPlacement placement)
     {
-        // A display left of/above the primary cannot satisfy nonnegative coordinates.
-        var displays = DisplayArea.FindAll();
-        var area = displays.FirstOrDefault(display =>
-        {
-            var work = display.WorkArea;
-            return work.X >= 0 && work.Y >= 0 && placement.X >= work.X && placement.Y >= work.Y &&
-                (long)placement.X < (long)work.X + work.Width && (long)placement.Y < (long)work.Y + work.Height;
-        }) ?? DisplayArea.Primary;
-        var bounds = area.WorkArea;
+        var bounds = NativeMonitor.WorkArea(placement.X, placement.Y);
         return WindowPlacementStore.Fit(placement, bounds.X, bounds.Y, bounds.Width, bounds.Height);
     }
 
     private void SetMinimum()
     {
         if (_window.AppWindow.Presenter is not OverlappedPresenter presenter) return;
-        var work = DisplayArea.GetFromWindowId(_window.AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
+        var position = _window.AppWindow.Position;
+        var work = NativeMonitor.WorkArea(position.X, position.Y);
         presenter.PreferredMinimumWidth = Math.Min(WindowPlacementStore.MinimumWidth, work.Width);
         presenter.PreferredMinimumHeight = Math.Min(WindowPlacementStore.MinimumHeight, work.Height);
     }
