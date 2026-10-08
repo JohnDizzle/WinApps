@@ -19,7 +19,7 @@ internal static class BrowserUi
     public static ButtonElement GlassButton(ButtonElement button, bool selected = false) => button
         .Background(Theme.LayerFill)
         .Foreground(Theme.Ref("TextFillColorPrimaryBrush"))
-        .WithBorder(selected ? Theme.Ref("AccentFillColorDefaultBrush") : Theme.CardStroke)
+        .WithBorder(selected ? Theme.Ref("TextFillColorSecondaryBrush") : Theme.CardStroke)
         .Set(control =>
         {
             if (!GlassStates.TryGetValue(control, out var state))
@@ -35,15 +35,23 @@ internal static class BrowserUi
         });
     private static void ApplyGlass(Microsoft.UI.Xaml.Controls.Button control, bool selected)
     {
-        if (new Windows.UI.ViewManagement.AccessibilitySettings().HighContrast) return;
-        var accent = new Windows.UI.ViewManagement.UISettings().GetColorValue(Windows.UI.ViewManagement.UIColorType.Accent);
+        if (new Windows.UI.ViewManagement.AccessibilitySettings().HighContrast)
+        {
+            var resources = Microsoft.UI.Xaml.Application.Current.Resources;
+            control.Background = (Microsoft.UI.Xaml.Media.Brush)resources["ControlFillColorDefaultBrush"];
+            control.Foreground = (Microsoft.UI.Xaml.Media.Brush)resources["TextFillColorPrimaryBrush"];
+            control.BorderBrush = (Microsoft.UI.Xaml.Media.Brush)resources[selected ? "TextFillColorPrimaryBrush" : "CardStrokeColorDefaultBrush"];
+            return;
+        }
         var dark = control.ActualTheme == ElementTheme.Dark;
         control.Background = new Microsoft.UI.Xaml.Media.AcrylicBrush
         {
-            TintColor = selected ? accent : dark ? Microsoft.UI.Colors.Black : Microsoft.UI.Colors.White,
-            TintOpacity = selected ? 0.14 : 0.08,
+            TintColor = dark ? Microsoft.UI.Colors.Black : Microsoft.UI.Colors.White,
+            TintOpacity = selected ? 0.28 : 0.08,
             TintLuminosityOpacity = dark ? 0.12 : 0.8,
-            FallbackColor = dark ? Windows.UI.Color.FromArgb(255, 40, 44, 52) : Windows.UI.Color.FromArgb(255, 242, 245, 250)
+            FallbackColor = dark
+                ? selected ? Windows.UI.Color.FromArgb(255, 64, 64, 64) : Windows.UI.Color.FromArgb(255, 40, 40, 40)
+                : selected ? Windows.UI.Color.FromArgb(255, 224, 224, 224) : Windows.UI.Color.FromArgb(255, 245, 245, 245)
         };
     }
     public static ExpanderElement Disclosure(string title, Element body, Optional<bool> isExpanded = default, Action<bool>? changed = null) =>

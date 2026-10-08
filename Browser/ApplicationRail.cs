@@ -124,7 +124,7 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                     .AutomationName($"Files for {app.Name}")
                 : Text(""))
         ).HAlign(HorizontalAlignment.Stretch).Padding(10))
-            .WithBorder(app.FullName == selected?.FullName ? Theme.Ref("AccentFillColorDefaultBrush") : Theme.Ref("ControlFillColorTransparentBrush"))
+            .WithBorder(app.FullName == selected?.FullName ? Theme.Ref("TextFillColorSecondaryBrush") : Theme.Ref("ControlFillColorTransparentBrush"))
             .CornerRadius(10).HAlign(HorizontalAlignment.Stretch).WithKey(app.FullName)) with { SelectedIndex = selectedIndex })
             .SelectedIndexChanged(index =>
             {
@@ -162,7 +162,7 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                 Disclosure("Open Apps List", keyboard, !filtering && appsListOpen.Value, expanded =>
                     { appsListOpen.Set(expanded); if (expanded) appFilesOpen.Set(false); })
                     .AutomationName("Open Apps List").IsEnabled(!filtering),
-                TextBlock($"{(filtering ? "Matches" : letter.Value)} · {visibleApps.Length} applications").Foreground(Theme.AccentText).SemiBold(),
+                TextBlock($"{(filtering ? "Matches" : letter.Value)} · {visibleApps.Length} applications").Foreground(Theme.Ref("TextFillColorPrimaryBrush")).SemiBold(),
                 appList))
                     .AutomationName("Application rail scroll area")
                     .Set(control =>
