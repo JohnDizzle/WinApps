@@ -9,7 +9,8 @@ public sealed class WindowPlacementStore(string? path = null)
 {
     public const int MinimumWidth = 768;
     public const int MinimumHeight = 960;
-    public const int DefaultWidth = 1200;
+    public const int DefaultWidth = 1440;
+    public const int DefaultHeight = 960;
     private readonly string _path = path ?? Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyApps", "window.json");
 
@@ -41,6 +42,15 @@ public sealed class WindowPlacementStore(string? path = null)
             try { File.Delete(temporary); }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
         }
+    }
+
+    public static WindowPlacement FirstRun(int left, int top, int width, int height, double scale = 1)
+    {
+        if (!double.IsFinite(scale) || scale <= 0 || scale > 8) scale = 1;
+        var bounds = Fit(new(0, 0, (int)Math.Round(DefaultWidth * scale), (int)Math.Round(DefaultHeight * scale)),
+            left, top, width, height);
+        return bounds with { X = Math.Max(0, left) + (width - bounds.Width) / 2,
+            Y = Math.Max(0, top) + (height - bounds.Height) / 2 };
     }
 
     public static WindowPlacement Fit(WindowPlacement saved, int left, int top, int width, int height)

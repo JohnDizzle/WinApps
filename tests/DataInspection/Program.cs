@@ -37,6 +37,13 @@ try
     var placementPath = Path.Combine(root, "window.json");
     var placementStore = new WindowPlacementStore(placementPath);
     Check(placementStore.Load() is null, "Missing placement must use startup defaults.");
+    Check(WindowPlacementStore.FirstRun(0, 0, 1920, 1080) == new WindowPlacement(240, 60, 1440, 960),
+        "First-run defaults must be wider and centered.");
+    var scaledFirstRun = WindowPlacementStore.FirstRun(0, 0, 2560, 1600, 1.5);
+    Check(scaledFirstRun == new WindowPlacement(200, 80, 2160, 1440),
+        "First-run defaults must account for display scaling so the rail remains visible.");
+    Check(WindowPlacementStore.FirstRun(0, 0, 640, 480) == new WindowPlacement(0, 0, 640, 480),
+        "First-run defaults must fit smaller displays.");
     File.WriteAllText(placementPath, "broken json");
     Check(placementStore.Load() is null, "Corrupt placement must be ignored.");
     var normalPlacement = new WindowPlacement(20, 40, 1200, 960, true);

@@ -27,8 +27,9 @@ internal sealed class WindowPlacementController
         _window = window;
         _store = store;
         var app = window.AppWindow;
-        var saved = _store.Load() ?? new WindowPlacement(Math.Max(0, app.Position.X), Math.Max(0, app.Position.Y),
-            WindowPlacementStore.DefaultWidth, WindowPlacementStore.MinimumHeight);
+        var work = NativeMonitor.WorkArea(0, 0);
+        var saved = _store.Load() ?? WindowPlacementStore.FirstRun(work.X, work.Y, work.Width, work.Height,
+            NativeMonitor.WindowScale(window));
         _normal = Fit(saved);
         _maximized = saved.Maximized;
         SetMinimum();

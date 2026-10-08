@@ -9,5 +9,5 @@ internal static class Program
 {
     [STAThread]
     private static void Main() => ReactorApp.Run<WinAppsShell>("WinApps",
-        width: WindowPlacementStore.DefaultWidth, height: WindowPlacementStore.MinimumHeight);
+        width: WindowPlacementStore.DefaultWidth, height: WindowPlacementStore.DefaultHeight);
 }

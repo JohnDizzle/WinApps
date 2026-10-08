@@ -20,6 +20,14 @@ internal static class NativeMonitor
 
     [DllImport("user32.dll")]
     private static extern nint MonitorFromPoint(Point point, uint flags);
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(nint window);
+
+    internal static double WindowScale(Microsoft.UI.Xaml.Window window)
+    {
+        var dpi = GetDpiForWindow(WinRT.Interop.WindowNative.GetWindowHandle(window));
+        return dpi == 0 ? 1 : dpi / 96d;
+    }
     [DllImport("user32.dll", EntryPoint = "GetMonitorInfoW")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetMonitorInfo(nint monitor, ref MonitorInfo info);

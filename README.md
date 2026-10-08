@@ -39,7 +39,7 @@ dotnet run --project tests/DataInspection/DataInspection.csproj
 
 The first launch scans the current user's installed applications. Later launches use `%LOCALAPPDATA%\MyApps\library.json`; Refresh applications updates the cache. File inventory, settings, and package configuration are read live when an app is selected.
 
-Window size, position, and maximized state are saved locally in `%LOCALAPPDATA%\MyApps\window.json`. The normal minimum is 768 × 960 pixels. Restored bounds are fitted to an available screen with nonnegative coordinates; smaller screens use their available work area. Invalid saved placement falls back to startup defaults.
+Window size, position, and maximized state are saved locally in `%LOCALAPPDATA%\MyApps\window.json`. First launch opens centered at 1440 × 960 logical pixels, scaled for the display and fitted to its work area. The normal resize minimum is 768 × 960 pixels. Restored bounds are fitted to an available screen with nonnegative coordinates; smaller screens use their available work area. Invalid saved placement falls back to startup defaults.
 
 ## Documentation and participation
 
