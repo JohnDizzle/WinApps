@@ -34,6 +34,26 @@ string Preview(string name, string content, Encoding? encoding = null)
 
 try
 {
+    var placementPath = Path.Combine(root, "window.json");
+    var placementStore = new WindowPlacementStore(placementPath);
+    Check(placementStore.Load() is null, "Missing placement must use startup defaults.");
+    File.WriteAllText(placementPath, "broken json");
+    Check(placementStore.Load() is null, "Corrupt placement must be ignored.");
+    var normalPlacement = new WindowPlacement(20, 40, 1200, 960, true);
+    var placementSaveError = placementStore.Save(normalPlacement);
+    Check(placementSaveError is null, $"Window placement save failed: {placementSaveError}");
+    Check(placementStore.Load() == normalPlacement, "Normal bounds and maximized state must round-trip.");
+    var smallPlacement = WindowPlacementStore.Fit(new(-100, -200, 1, 1), 0, 0, 1920, 1080);
+    Check(smallPlacement == new WindowPlacement(0, 0, 768, 960), "Negative coordinates and undersized bounds must be corrected.");
+    var distantPlacement = WindowPlacementStore.Fit(new(int.MaxValue, int.MaxValue, int.MaxValue, int.MaxValue), 0, 0, 1920, 1080);
+    Check(distantPlacement == new WindowPlacement(0, 0, 1920, 1080), "Huge and disconnected-display bounds must fit without overflow.");
+    var tinyDisplay = WindowPlacementStore.Fit(normalPlacement, 0, 0, 640, 480);
+    Check(tinyDisplay.Width == 640 && tinyDisplay.Height == 480 && tinyDisplay.X == 0 && tinyDisplay.Y == 0,
+        "A smaller display must keep the full window reachable.");
+    var secondary = WindowPlacementStore.Fit(new(2200, 100, 800, 960), 1920, 0, 1920, 1080);
+    Check(secondary.X == 2200 && secondary.Y == 100, "A valid positive secondary-display position must be retained.");
+    File.WriteAllText(placementPath, "{\"Width\":-1,\"Height\":960}");
+    Check(placementStore.Load() is null, "Invalid saved dimensions must be ignored.");
     using var canceled = new CancellationTokenSource();
     canceled.Cancel();
     var cancellationApp = new InstalledApp("Canceled", "family", "family!App", "Publisher", "1", root, root);

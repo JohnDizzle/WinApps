@@ -38,6 +38,7 @@ internal sealed class WinAppsShell : Component
                 {
                     if (window?.NativeWindow is { } nativeWindow)
                     {
+                        WindowPlacementController.Attach(nativeWindow);
                         nativeWindow.ExtendsContentIntoTitleBar = true;
                         window.AppWindow.TitleBar.PreferredHeightOption = Microsoft.UI.Windowing.TitleBarHeightOption.Tall;
                         window.AppWindow.TitleBar.ButtonForegroundColor = darkTheme ? Microsoft.UI.Colors.White : Microsoft.UI.Colors.Black;
