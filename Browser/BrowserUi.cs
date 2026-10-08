@@ -26,7 +26,7 @@ internal static class BrowserUi
             new[] { TextBlock(title).FontSize(20).Bold() }.Concat(children).ToArray()).Padding(24)).Background(Theme.CardBackground).WithBorder(Theme.CardStroke).CornerRadius(12);
     public static string ActionGlyph(string label) => label.StartsWith("Refresh") || label.StartsWith("Working") ? "\uE72C"
             : label.StartsWith("Restart") || label.StartsWith("Try again") ? "\uE72C"
-            : label.StartsWith("Unselect") ? "\uE711"
+            : label.StartsWith("Unselect") || label == "Clear selection" ? "\uE711"
             : label.StartsWith("Save") ? "\uE74E"
             : label.StartsWith("Reset") || label.StartsWith("Reload") ? "\uE777"
             : label.Contains("default app") ? "\uE8A7"
@@ -70,5 +70,7 @@ internal static class BrowserUi
 
     public static Element AppIcon(InstalledApp app, double size = 32) => app.IconUri is null
             ? Icon(FontIcon("\uE71D", "Segoe Fluent Icons")).Width(size).Height(size)
-            : Image(app.IconUri).AutomationName($"{app.Name} icon").Width(size).Height(size);
+            : Image(string.IsNullOrWhiteSpace(app.FamilyName) ? app.IconUri
+                : MyApps.Services.Icons.ApplicationIcons.NormalizeCachedPackageIcon(app.IconUri))
+                .AutomationName($"{app.Name} icon").Width(size).Height(size);
 }

@@ -15,11 +15,11 @@ public sealed class ApplicationLauncher
             var package = new PackageManager().FindPackagesForUser(string.Empty).FirstOrDefault(item =>
                 item.Id.FamilyName == app.FamilyName && item.InstalledLocation.Path.Equals(app.InstallPath, StringComparison.OrdinalIgnoreCase));
             if (package is null) return "Package registration changed. Refresh applications before launching.";
+            var entries = await package.GetAppListEntriesAsync();
+            var entry = entries.FirstOrDefault(item => item.AppUserModelId == app.FullName);
+            if (entry is null) return "The selected application is no longer registered for launch.";
             if (!elevated)
             {
-                var entries = await package.GetAppListEntriesAsync();
-                var entry = entries.FirstOrDefault(item => item.AppUserModelId == app.FullName);
-                if (entry is null) return "The selected application is no longer registered for launch.";
                 return await entry.LaunchAsync() ? "Application launched." : "Windows could not launch this application.";
             }
             var id = app.FullName.Contains('!') ? app.FullName[(app.FullName.LastIndexOf('!') + 1)..] : "";
@@ -28,7 +28,10 @@ public sealed class ApplicationLauncher
                 return "This application's manifest does not declare supported elevation.";
             var executable = PackageLaunchPath.Resolve(package.InstalledLocation.Path, launch.Executable);
             if (!File.Exists(executable)) return "The declared executable is unavailable.";
-            Process.Start(new ProcessStartInfo(executable) { UseShellExecute = true, Verb = "runas", WorkingDirectory = package.InstalledLocation.Path });
+            // Let the shell activate the registered app with its package identity and UAC.
+            // Direct execution of the protected WindowsApps executable can be denied.
+            Process.Start(new ProcessStartInfo("shell:AppsFolder\\" + entry.AppUserModelId)
+                { UseShellExecute = true, Verb = "runas" });
             return "Elevated launch requested.";
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223) { return "Elevated launch cancelled."; }

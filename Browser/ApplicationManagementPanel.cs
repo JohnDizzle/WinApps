@@ -2,6 +2,8 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using MyApps.Models;
+using System.Diagnostics;
+using System.Text.Encodings.Web;
 using static Microsoft.UI.Reactor.Factories;
 using static MyApps.Browser.BrowserUi;
 
@@ -54,13 +56,11 @@ internal sealed class ApplicationManagementPanel : Component<ApplicationManageme
                 .AutomationName($"Copy {Props.App.Name} for Installed apps search").CornerRadius(9).Padding(10)),
             Text(message.Value).IsVisible(message.Value.Length > 0));
     }
-
-    internal static Uri ManagementUri(InstalledApp app) => string.IsNullOrWhiteSpace(app.FamilyName)
-        ? new("ms-settings:appsfeatures")
-        : new("ms-settings:appsfeatures-app?PackageFamilyName=" + Uri.EscapeDataString(app.FamilyName));
+    internal static Uri ManagementUri(InstalledApp app) => new ($"ms-settings:appsfeatures");
     internal static async Task<bool> OpenManagementAsync(InstalledApp app, Func<Uri, Task<bool>> launch)
     {
         var target = ManagementUri(app);
+
         try { if (await launch(target)) return true; }
         catch (Exception) when (!string.IsNullOrWhiteSpace(app.FamilyName)) { }
         if (string.IsNullOrWhiteSpace(app.FamilyName)) return false;

@@ -171,8 +171,20 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
 
         return
                 FlexColumn(
-                    Card(VStack(12,
-                    ScrollView(HStack(8, new[] { "Overview", "Package", "Storage", "Settings", "Registry", "LocalState" }.Select(tab =>
+                    Card(VStack(10,
+                    (Props.Compact ? FlexColumn() : FlexRow()) with { Children = new Element[] {
+                        HStack(12, Slot("heading-icon", selected is null ? Icon(FontIcon("\uE71D", "Segoe Fluent Icons")).Width(32).Height(32) : AppIcon(selected, 32)),
+                            VStack(4, TextBlock(selected?.Name ?? "WinApps").FontSize(22).SemiBold(),
+                                TextBlock(selected is null ? "Your installed applications, settings, and storage" :
+                                    string.IsNullOrWhiteSpace(selected.FamilyName) ? "Desktop application · This PC" : "Packaged application · This PC")
+                                    .FontSize(12).TextWrapping().Foreground(Theme.SecondaryText))).Flex(grow: 1, basis: 0),
+                        HStack(8, Slot("app-management", selected is not null ? Component<ApplicationManagementPanel, ApplicationManagementPanelProps>(new(selected))
+                            .WithKey($"management-{selected.FullName}") : Text("")).IsEnabled(!Props.Loading),
+                        Slot("launch-actions", selected is not null ? Component<ApplicationLaunchActions, ApplicationLaunchActionsProps>(new(selected, packageConfiguration))
+                            .WithKey(selected.FullName) : Text(""))
+                            .IsEnabled(!Props.Loading).IsVisible(selected is not null && !string.IsNullOrWhiteSpace(selected.FamilyName))).Flex(shrink: 0)
+                    } },
+                    FlexRow(ScrollView(HStack(8, new[] { "Overview", "Package", "Storage", "Settings", "Registry", "LocalState" }.Select(tab =>
                         Button(tab, () => { if (view != tab) { Props.OnView(tab); BackToTop(); } })
                             .Background(view == tab ? Theme.Ref("AccentFillColorDefaultBrush") : Theme.LayerFill)
                             .Foreground(view == tab ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.Ref("TextFillColorPrimaryBrush"))
@@ -181,7 +193,7 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                                 BrowserMotion.Enable(control);
                                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetItemStatus(control, view == tab ? "Selected" : "");
                             }).CornerRadius(9).Padding(14)
-                            .AutomationName($"View {tab}").IsEnabled(selected is not null).WithKey(tab)).ToArray()))
+                            .AutomationName($"View {tab}").IsEnabled(selected is not null).WithKey(tab)).ToArray()).Margin(bottom: 8))
                         .Set(control =>
                         {
                             control.ContentOrientation = Microsoft.UI.Xaml.Controls.ScrollingContentOrientation.Horizontal;
@@ -189,30 +201,19 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                             control.HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollingScrollBarVisibility.Auto;
                             control.VerticalScrollMode = Microsoft.UI.Xaml.Controls.ScrollingScrollMode.Disabled;
                             control.VerticalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollingScrollBarVisibility.Hidden;
-                        }),
-                    VStack(8,
-                        TextBlock(selected?.Name ?? "Your library").SemiBold().TextWrapping().Flex(grow: 1, basis: 0),
-                        ActionButton("Reload resources", ReloadResources).Margin(right: 8)
-                            .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, UiResources.FilePath)),
-                        Button(HStack(8, FluentGlyph("\uE74A"), TextBlock("Back to top")), BackToTop)
-                            .AutomationName("Back to top").Padding(14).CornerRadius(9)
-                            .Background(Theme.LayerFill).WithBorder(Theme.CardStroke)),
+                        }).CornerRadius(1).MinWidth(0).Margin(right: 12).Flex(grow: 1, basis: 0),
+                    Border(HStack(8,
+                    ActionButton("Reload resources", ReloadResources).Padding(10)
+                        .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, UiResources.FilePath)),
+                    Button(FluentGlyph("\uE74A"), BackToTop)
+                        .AutomationName("Back to top").Padding(10).CornerRadius(9)
+                        .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Back to top"))
+                        .Background(Theme.LayerFill).WithBorder(Theme.CardStroke)))
+                        .Padding(4).VAlign(VerticalAlignment.Top).Flex(shrink: 0)),
                     Text(resourceStatus.Value).IsVisible(resourceStatus.Value.Length > 0)
                     ).Padding(16)).Background(Theme.CardBackground).WithBorder(Theme.CardStroke).CornerRadius(12)
                         .Margin(left: padding, top: 12, right: padding).Flex(shrink: 0),
                 ScrollView(VStack(20,
-                    Card(VStack(16,
-                        HStack(16, Slot("heading-icon", selected is null ? Icon(FontIcon("\uE71D", "Segoe Fluent Icons")).Width(48).Height(48) : AppIcon(selected, 48)),
-                            VStack(4, Heading(selected?.Name ?? "WinApps"),
-                                TextBlock(selected is null ? "Your installed applications, settings, and storage" :
-                                    string.IsNullOrWhiteSpace(selected.FamilyName) ? "Desktop application · This PC" : "Packaged application · This PC")
-                                    .TextWrapping().Foreground(Theme.SecondaryText))),
-                        Slot("app-management", selected is not null ? Component<ApplicationManagementPanel, ApplicationManagementPanelProps>(new(selected))
-                            .WithKey($"management-{selected.FullName}") : Text("")).IsEnabled(!Props.Loading),
-                        Slot("launch-actions", selected is not null ? Component<ApplicationLaunchActions, ApplicationLaunchActionsProps>(new(selected, packageConfiguration))
-                            .WithKey(selected.FullName) : Text(""))
-                            .IsEnabled(!Props.Loading).IsVisible(selected is not null && !string.IsNullOrWhiteSpace(selected.FamilyName)))
-                        .Padding(padding)).Background(Theme.CardBackground).WithBorder(Theme.CardStroke).CornerRadius(12),
                     TextBlock(status).TextWrapping().FontSize(12).Foreground(Theme.SecondaryText).Margin(left: 4),
                     VStack(0, content).Set(BrowserMotion.Enable).WithKey($"content-{selected?.FullName ?? "library"}-{view}-{resourceVersion.Value}")
                 ).Padding(padding)).Set(control => _contentScroll = control).MinWidth(0).Flex(grow: 1, basis: 0)).MinWidth(0).Flex(grow: 1, basis: 0);

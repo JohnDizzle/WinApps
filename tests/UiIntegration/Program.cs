@@ -97,10 +97,27 @@ public sealed partial class ChecksApplication : Application
             try { UiResources.Parse(resourceJson.Replace("https://", "http://")); }
             catch (InvalidDataException) { invalidResourcesRejected = true; }
             Check(invalidResourcesRejected, "Invalid resource links must be rejected before applying edits.");
-            Check(ApplicationManagementPanel.ManagementUri(app).OriginalString == "ms-settings:appsfeatures-app?PackageFamilyName=fixture-family",
+            using (var paddedIcon = new System.Drawing.Bitmap(150, 150))
+            {
+                using (var paint = System.Drawing.Graphics.FromImage(paddedIcon))
+                    paint.FillRectangle(System.Drawing.Brushes.Blue, 55, 65, 40, 20);
+                using var normalizedIcon = MyApps.Services.Icons.ApplicationIcons.NormalizePackageIcon(paddedIcon);
+                Check(normalizedIcon.Width == 64 && normalizedIcon.Height == 64,
+                    "Normalized package icons must retain a consistent canvas.");
+                Check(normalizedIcon.GetPixel(5, 32).A > 200 && normalizedIcon.GetPixel(32, 5).A == 0,
+                    "Padded rectangular artwork must enlarge without losing its aspect ratio.");
+                Check(normalizedIcon.GetPixel(0, 32).A == 0,
+                    "Normalized artwork must retain an outer margin.");
+            }
+            using (var emptyIcon = new System.Drawing.Bitmap(32, 32))
+            using (var normalizedEmpty = MyApps.Services.Icons.ApplicationIcons.NormalizePackageIcon(emptyIcon))
+                Check(normalizedEmpty.GetPixel(32, 32).A == 0,
+                    "Empty icons must remain transparent without invalid cropping.");
+            Console.WriteLine("Passed package icon normalization checks.");
+            Check(ApplicationManagementPanel.ManagementUri(app).OriginalString == "ms-settings:appsfeatures-app?fixture-family",
                 "App management must target the package family, not the AUMID.");
             Check(ApplicationManagementPanel.ManagementUri(app with { FamilyName = "48996JohnM.Doyle.WebDive_jw9ac53qrz6qt" }).OriginalString
-                == "ms-settings:appsfeatures-app?PackageFamilyName=48996JohnM.Doyle.WebDive_jw9ac53qrz6qt",
+                == "ms-settings:appsfeatures-app?48996JohnM.Doyle.WebDive_jw9ac53qrz6qt",
                 "Web Dive Advanced options must receive its registered package family.");
             Check(ApplicationManagementPanel.ManagementUri(app with { FamilyName = "", Source = "Desktop · Start Menu" }).OriginalString
                 == "ms-settings:appsfeatures", "Shortcuts without a package identity must use the Installed apps fallback.");
@@ -110,7 +127,7 @@ public sealed partial class ChecksApplication : Application
                 launchedUris.Add(uri.OriginalString);
                 return Task.FromResult(launchedUris.Count == 2);
             }).GetAwaiter().GetResult() && launchedUris.SequenceEqual(new[] {
-                "ms-settings:appsfeatures-app?PackageFamilyName=fixture-family", "ms-settings:appsfeatures" }),
+                "ms-settings:appsfeatures-app?fixture-family", "ms-settings:appsfeatures" }),
                 "A rejected direct launch must fall back to Installed apps.");
             launchedUris.Clear();
             Check(ApplicationManagementPanel.OpenManagementAsync(app, uri =>
