@@ -47,6 +47,7 @@ The first launch scans the current user's installed applications. Later launches
 - [Contributing and validation](CONTRIBUTING.md)
 - [Release procedure](docs/releasing.md)
 - [Reserved Store identity](docs/store-identity.md)
+- [Public pages, Azure upload layout, and link diagram](docs/public-pages.md)
 - [Security reporting](SECURITY.md)
 - [Code of conduct](CODE_OF_CONDUCT.md)
 - [Report a bug or request a feature](https://github.com/JohnDizzle/WinApps/issues/new/choose)

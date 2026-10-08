@@ -54,6 +54,16 @@ public sealed partial class ChecksApplication : Application
             }
             foreach (var requestedTheme in new[] { ElementTheme.Light, ElementTheme.Dark })
             {
+                var settings = SettingsFlyout.Create(requestedTheme, requestedTheme == ElementTheme.Dark,
+                    BackdropKind.Mica, () => { }, _ => { });
+                var settingsPanel = (StackPanel)((ScrollViewer)settings.Content).Content;
+                var about = (StackPanel)((Border)settingsPanel.Children.Last()).Child;
+                var links = about.Children.OfType<StackPanel>().Single().Children.OfType<HyperlinkButton>().ToArray();
+                Check(links.Select(link => link.Content.ToString()).SequenceEqual(new[] { "Features", "Privacy", "License" }),
+                    "Settings must include Features, Privacy, and License in one bottom card.");
+                Check(about.Children.OfType<TextBlock>().Any(text => text.Text.StartsWith("Version ")) &&
+                    about.Children.OfType<TextBlock>().Any(text => text.Text == "John M. Doyle"),
+                    "The settings card must show the running version and author.");
                 var frame = WinAppsShell.WindowFrame(requestedTheme, TextBlock("Title"),
                     ErrorBoundary(TextBlock("Content"), _ => TextBlock("Recovery")));
                 Check(frame.Modifiers?.Backdrop?.Kind == BackdropKind.Mica,

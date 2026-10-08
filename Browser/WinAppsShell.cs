@@ -20,50 +20,15 @@ internal sealed class WinAppsShell : Component
         _toggleNavigation = () => navigationVisible.Set(!navigationVisible.Value);
         var darkTheme = theme.Value == ElementTheme.Dark || (theme.Value == ElementTheme.Default &&
             Microsoft.UI.Xaml.Application.Current.RequestedTheme == ApplicationTheme.Dark);
-        var themeLabel = darkTheme ? "Switch to light theme" : "Switch to dark theme";
         var appearanceSettings = Button(FluentGlyph("\uE713", 20), () => { })
-            .Width(40).Height(40).Padding(0).CornerRadius(10).AutomationName("Appearance settings")
+            .Width(40).Height(40).Padding(0).CornerRadius(10).AutomationName("Settings")
             .Background(Theme.LayerFill).WithBorder(Theme.CardStroke)
             .Set(control =>
             {
-                Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Theme and backdrop");
-                var menu = new Microsoft.UI.Xaml.Controls.MenuFlyout
-                {
-                    Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.BottomEdgeAlignedRight
-                };
-                var themeItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
-                {
-                    Text = themeLabel,
-                    RequestedTheme = theme.Value,
-                    Icon = new Microsoft.UI.Xaml.Controls.FontIcon
-                    {
-                        Glyph = darkTheme ? "\uE706" : "\uE708",
-                        FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Segoe Fluent Icons")
-                    }
-                };
-                themeItem.Click += (_, _) => theme.Set(darkTheme ? ElementTheme.Light : ElementTheme.Dark);
-                menu.Items.Add(themeItem);
-                var backdropMenu = new Microsoft.UI.Xaml.Controls.MenuFlyoutSubItem
-                {
-                    Text = "Backdrop",
-                    RequestedTheme = theme.Value
-                };
-                foreach (var (label, kind) in new[] {
-                    ("Mica", BackdropKind.Mica),
-                    ("Acrylic", BackdropKind.DesktopAcrylic),
-                    ("Mica Alt", BackdropKind.MicaAlt) })
-                {
-                    var item = new Microsoft.UI.Xaml.Controls.ToggleMenuFlyoutItem
-                    {
-                        Text = label,
-                        IsChecked = backdrop.Value == kind,
-                        RequestedTheme = theme.Value
-                    };
-                    item.Click += (_, _) => backdrop.Set(kind);
-                    backdropMenu.Items.Add(item);
-                }
-                menu.Items.Add(backdropMenu);
-                control.Flyout = menu;
+                Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Settings and about WinApps");
+                control.Flyout = SettingsFlyout.Create(theme.Value, darkTheme, backdrop.Value,
+                    () => theme.Set(darkTheme ? ElementTheme.Light : ElementTheme.Dark),
+                    kind => backdrop.Set(kind));
             });
 
         // Window material and theme must belong to the host root, outside recovery boundaries.
