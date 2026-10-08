@@ -187,9 +187,7 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                             .IsEnabled(!Props.Loading).IsVisible(selected is not null && !string.IsNullOrWhiteSpace(selected.FamilyName))).Flex(shrink: 0)
                     } },
                     FlexRow(ScrollView(HStack(8, new[] { "Overview", "Package", "Storage", "Settings", "Registry", "LocalState" }.Select(tab =>
-                        Button(tab, () => { if (view != tab) { Props.OnView(tab); BackToTop(); } })
-                            .Background(view == tab ? Theme.Ref("AccentFillColorDefaultBrush") : Theme.LayerFill)
-                            .Foreground(view == tab ? Theme.Ref("TextOnAccentFillColorPrimaryBrush") : Theme.Ref("TextFillColorPrimaryBrush"))
+                        GlassButton(Button(tab, () => { if (view != tab) { Props.OnView(tab); BackToTop(); } }), view == tab)
                             .Set(control =>
                             {
                                 BrowserMotion.Enable(control);

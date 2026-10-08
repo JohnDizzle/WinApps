@@ -10,10 +10,42 @@ namespace MyApps.Browser;
 
 internal static class BrowserUi
 {
+    private sealed class GlassState { public bool Selected; }
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Microsoft.UI.Xaml.Controls.Button, GlassState> GlassStates = new();
     // A stable panel owns conditional content; changing native kinds replaces its keyed child.
     public static Element Slot(string name, Element child) => VStack(0,
         child.WithKey($"{name}-{child.GetType().FullName}-{child.Key}")).WithKey(name);
     public static Element Text(string value) => TextBlock(value).TextWrapping();
+    public static ButtonElement GlassButton(ButtonElement button, bool selected = false) => button
+        .Background(Theme.LayerFill)
+        .Foreground(Theme.Ref("TextFillColorPrimaryBrush"))
+        .WithBorder(selected ? Theme.Ref("AccentFillColorDefaultBrush") : Theme.CardStroke)
+        .Set(control =>
+        {
+            if (!GlassStates.TryGetValue(control, out var state))
+            {
+                state = new GlassState();
+                GlassStates.Add(control, state);
+                control.ActualThemeChanged += (_, _) => ApplyGlass(control, state.Selected);
+                control.Loaded += (_, _) => ApplyGlass(control, state.Selected);
+            }
+            state.Selected = selected;
+            ApplyGlass(control, selected);
+            BrowserMotion.SelectionTransition(control, selected);
+        });
+    private static void ApplyGlass(Microsoft.UI.Xaml.Controls.Button control, bool selected)
+    {
+        if (new Windows.UI.ViewManagement.AccessibilitySettings().HighContrast) return;
+        var accent = new Windows.UI.ViewManagement.UISettings().GetColorValue(Windows.UI.ViewManagement.UIColorType.Accent);
+        var dark = control.ActualTheme == ElementTheme.Dark;
+        control.Background = new Microsoft.UI.Xaml.Media.AcrylicBrush
+        {
+            TintColor = selected ? accent : dark ? Microsoft.UI.Colors.Black : Microsoft.UI.Colors.White,
+            TintOpacity = selected ? 0.14 : 0.08,
+            TintLuminosityOpacity = dark ? 0.12 : 0.8,
+            FallbackColor = dark ? Windows.UI.Color.FromArgb(255, 40, 44, 52) : Windows.UI.Color.FromArgb(255, 242, 245, 250)
+        };
+    }
     public static ExpanderElement Disclosure(string title, Element body, Optional<bool> isExpanded = default, Action<bool>? changed = null) =>
             Expander(title, body.HAlign(HorizontalAlignment.Stretch), isExpanded, changed)
                 .HAlign(HorizontalAlignment.Stretch)

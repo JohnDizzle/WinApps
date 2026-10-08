@@ -14,6 +14,34 @@ internal static class BrowserMotion
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<FrameworkElement, object> LoadingAttached = new();
     private sealed class LayoutState { public bool Compact; }
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<FrameworkElement, LayoutState> LayoutStates = new();
+    private sealed class SelectionState { public bool Selected; }
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<FrameworkElement, SelectionState> SelectionStates = new();
+    private sealed class AppearanceState { public string Value = ""; }
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<FrameworkElement, AppearanceState> AppearanceStates = new();
+
+    public static void SelectionTransition(FrameworkElement control, bool selected)
+    {
+        if (!SelectionStates.TryGetValue(control, out var state))
+        {
+            SelectionStates.Add(control, new SelectionState { Selected = selected });
+            return;
+        }
+        if (state.Selected == selected) return;
+        state.Selected = selected;
+        Fade(control);
+    }
+
+    public static void AppearanceTransition(FrameworkElement control, string value)
+    {
+        if (!AppearanceStates.TryGetValue(control, out var state))
+        {
+            AppearanceStates.Add(control, new AppearanceState { Value = value });
+            return;
+        }
+        if (state.Value == value) return;
+        state.Value = value;
+        Fade(control);
+    }
 
     public static void LayoutTransition(FrameworkElement control, bool compact)
     {

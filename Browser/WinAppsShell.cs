@@ -20,9 +20,8 @@ internal sealed class WinAppsShell : Component
         _toggleNavigation = () => navigationVisible.Set(!navigationVisible.Value);
         var darkTheme = theme.Value == ElementTheme.Dark || (theme.Value == ElementTheme.Default &&
             Microsoft.UI.Xaml.Application.Current.RequestedTheme == ApplicationTheme.Dark);
-        var appearanceSettings = Button(FluentGlyph("\uE713", 20), () => { })
+        var appearanceSettings = GlassButton(Button(FluentGlyph("\uE713", 20), () => { }))
             .Width(40).Height(40).Padding(0).CornerRadius(10).AutomationName("Settings")
-            .Background(Theme.LayerFill).WithBorder(Theme.CardStroke)
             .Set(control =>
             {
                 Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Settings and about WinApps");
@@ -68,5 +67,6 @@ internal sealed class WinAppsShell : Component
         , backdrop.Value);
     }
     internal static Element WindowFrame(ElementTheme theme, Element titleBar, Element content, BackdropKind backdrop = BackdropKind.Mica) =>
-        FlexColumn(titleBar, content).RequestedTheme(theme).Backdrop(backdrop);
+        FlexColumn(titleBar, content).RequestedTheme(theme).Backdrop(backdrop)
+            .Set(control => BrowserMotion.AppearanceTransition(control, $"{theme}-{backdrop}"));
 }
