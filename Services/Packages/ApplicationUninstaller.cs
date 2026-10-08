@@ -4,26 +4,28 @@ using MyApps.Models;
 
 namespace MyApps.Services.Packages;
 
+public sealed record ApplicationUninstallResult(bool Removed, string Message);
+
 public sealed class ApplicationUninstaller
 {
-    public async Task<string> UninstallAsync(InstalledApp app)
+    public async Task<ApplicationUninstallResult> UninstallAsync(InstalledApp app)
     {
         try
         {
             if (string.IsNullOrWhiteSpace(app.FamilyName))
-                return "Use Windows Installed apps to uninstall this desktop application.";
+                return new(false, "Use Windows Installed apps to uninstall this desktop application.");
             var manager = new PackageManager();
             var package = manager.FindPackagesForUser(string.Empty).FirstOrDefault(item =>
                 item.Id.FamilyName == app.FamilyName && !item.IsResourcePackage && !item.IsFramework &&
                 item.InstalledLocation.Path.Equals(app.InstallPath, StringComparison.OrdinalIgnoreCase));
-            if (package is null) return "Package registration changed. Refresh applications before uninstalling.";
+            if (package is null) return new(false, "Package registration changed. Refresh applications before uninstalling.");
             if (!(await package.GetAppListEntriesAsync()).Any(entry => entry.AppUserModelId == app.FullName))
-                return "The selected application is no longer registered. Refresh applications.";
+                return new(false, "The selected application is no longer registered. Refresh applications.");
             var result = await manager.RemovePackageAsync(package.Id.FullName);
             return result.ExtendedErrorCode is { HResult: < 0 } error
-                ? $"Uninstall failed (0x{error.HResult:X8}): {result.ErrorText}"
-                : "Application uninstalled for this user. Refresh applications to update the library.";
+                ? new(false, $"Uninstall failed (0x{error.HResult:X8}): {result.ErrorText}")
+                : new(true, "Application uninstalled for this user.");
         }
-        catch (Exception error) { return $"Uninstall failed: {error.Message}"; }
+        catch (Exception error) { return new(false, $"Uninstall failed: {error.Message}"); }
     }
 }

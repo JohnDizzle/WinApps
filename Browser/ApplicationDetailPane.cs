@@ -15,7 +15,8 @@ internal sealed record ApplicationDetailPaneProps(InstalledApp? Selected, Folder
     AppDataInventory? Inventory, AppSettingsSnapshot? Settings, PackageConfiguration? PackageConfiguration,
     AppDataFile? File, string Preview, string View, bool Busy, string Status, Action<string> OnView,
     Action OnMeasure, Action<string> OnOpenFolder, Action<AppDataFile> OnOpenFile, Action<AppDataFile> OnPreviewFile,
-    bool Loading = false, bool Compact = false, Action? OnReloadApplication = null);
+    bool Loading = false, bool Compact = false, Action? OnReloadApplication = null,
+    Action<InstalledApp>? OnUninstalled = null, string ActionNotice = "", int ActionNoticeVersion = 0);
 
 internal sealed class ApplicationDetailPane : Component<ApplicationDetailPaneProps>
 {
@@ -30,6 +31,7 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
         var resourceVersion = UseState(0);
         void ReloadResources()
         {
+            resourceStatus.Set("");
             try { UiResources.Reload(); resourceVersion.Set(resourceVersion.Value + 1); resourceStatus.Set("Resources reloaded."); Props.OnReloadApplication?.Invoke(); }
             catch (Exception error) { resourceStatus.Set($"Resources were not changed: {error.Message}"); }
         }
@@ -180,7 +182,7 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                                     .FontSize(12).TextWrapping().Foreground(Theme.SecondaryText))).Flex(grow: 1, basis: 0),
                         HStack(8, Slot("app-management", selected is not null ? Component<ApplicationManagementPanel, ApplicationManagementPanelProps>(new(selected))
                             .WithKey($"management-{selected.FullName}") : Text("")).IsEnabled(!Props.Loading),
-                        Slot("launch-actions", selected is not null ? Component<ApplicationLaunchActions, ApplicationLaunchActionsProps>(new(selected, packageConfiguration))
+                        Slot("launch-actions", selected is not null ? Component<ApplicationLaunchActions, ApplicationLaunchActionsProps>(new(selected, packageConfiguration, Props.OnUninstalled))
                             .WithKey(selected.FullName) : Text(""))
                             .IsEnabled(!Props.Loading).IsVisible(selected is not null && !string.IsNullOrWhiteSpace(selected.FamilyName))).Flex(shrink: 0)
                     } },
@@ -210,11 +212,12 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                         .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Back to top"))
                         .Background(Theme.LayerFill).WithBorder(Theme.CardStroke)))
                         .Padding(4).VAlign(VerticalAlignment.Top).Flex(shrink: 0)),
-                    Text(resourceStatus.Value).IsVisible(resourceStatus.Value.Length > 0)
+                    Component<TransientActionNotice, TransientActionNoticeProps>(new(resourceStatus.Value, resourceVersion.Value)).WithKey("resource-notice")
                     ).Padding(16)).Background(Theme.CardBackground).WithBorder(Theme.CardStroke).CornerRadius(12)
                         .Margin(left: padding, top: 12, right: padding).Flex(shrink: 0),
                 ScrollView(VStack(20,
                     TextBlock(status).TextWrapping().FontSize(12).Foreground(Theme.SecondaryText).Margin(left: 4),
+                    Component<TransientActionNotice, TransientActionNoticeProps>(new(Props.ActionNotice, Props.ActionNoticeVersion)).WithKey("library-action-notice"),
                     VStack(0, content).Set(BrowserMotion.Enable).WithKey($"content-{selected?.FullName ?? "library"}-{view}-{resourceVersion.Value}")
                 ).Padding(padding)).Set(control => _contentScroll = control).MinWidth(0).Flex(grow: 1, basis: 0)).MinWidth(0).Flex(grow: 1, basis: 0);
     }

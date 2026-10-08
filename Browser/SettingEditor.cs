@@ -23,6 +23,8 @@ internal sealed class SettingEditor : Component<SettingEditorProps>
         var value = UseState(Props.Setting.Value);
         var saving = UseState(false);
         var message = UseState("");
+        var noticeVersion = UseState(0);
+        void ShowMessage(string text) { noticeVersion.Set(noticeVersion.Value + 1); message.Set(text); }
         var attempt = UseState(0);
         _onText = value.Set;
         _draft = value.Value;
@@ -32,7 +34,7 @@ internal sealed class SettingEditor : Component<SettingEditorProps>
             _numberBox = null;
             _onText = null;
         }, Array.Empty<object>());
-        UseEffect(() => { setting.Set(Props.Setting); value.Set(Props.Setting.Value); message.Set(""); }, Props.ResetToken);
+        UseEffect(() => { setting.Set(Props.Setting); value.Set(Props.Setting.Value); ShowMessage(""); }, Props.ResetToken);
         var editable = setting.Value.Location is not null && SettingValueCodec.CanEdit(setting.Value.Type);
         var valid = SettingValueCodec.TryParse(setting.Value.Type, value.Value, out _, out var error);
         async void Save()
@@ -41,10 +43,11 @@ internal sealed class SettingEditor : Component<SettingEditorProps>
             var expected = setting.Value;
             var draft = value.Value;
             saving.Set(true);
+            ShowMessage("");
             try
             {
                 var result = await Task.Run(() => new PackageSettingsWriter().Write(Props.FamilyName, expected, draft));
-                message.Set(result.Message);
+                ShowMessage(result.Message);
                 if (result.Saved)
                 {
                     var updated = await Task.Run(() => new PackageSettingsReader().Read(Props.FamilyName));
@@ -54,7 +57,7 @@ internal sealed class SettingEditor : Component<SettingEditorProps>
                     if (saved is not null) { setting.Set(saved); value.Set(saved.Value); }
                 }
             }
-            catch (Exception ex) { message.Set($"Save failed: {ex.Message}"); }
+            catch (Exception ex) { ShowMessage($"Save failed: {ex.Message}"); }
             finally { saving.Set(false); }
         }
         Element editor = ReadOnlyText(value.Value, setting.Value.Name);
@@ -104,7 +107,9 @@ internal sealed class SettingEditor : Component<SettingEditorProps>
                     TextBlock(setting.Value.Type).FontSize(12).Foreground(Theme.SecondaryText)).Width(220).Flex(shrink: 0),
                 VStack(4,
                     Slot("value-editor", editor.IsEnabled(!Props.Disabled && !saving.Value).AutomationName(setting.Value.Name)),
-                    Text(editable && !valid ? error : message.Value).IsVisible((editable && !valid) || message.Value.Length > 0))
+                    Text(error).IsVisible(editable && !valid).WithKey("validation-error"),
+                    Component<TransientActionNotice, TransientActionNoticeProps>(new(message.Value, noticeVersion.Value))
+                        .IsVisible(!editable || valid).WithKey("save-notice"))
                     .Margin(left: 16).Flex(grow: 1, basis: 0),
                 Slot("save-action", editable ? ActionButton("Save", Save).IsEnabled(!Props.Disabled && !saving.Value && valid && value.Value != setting.Value.Value) : Text("Read only"))
                     .Width(90).Margin(left: 12).Flex(shrink: 0))

@@ -41,7 +41,7 @@ public sealed partial class ChecksApplication : Application
         Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread().TryEnqueue(Run);
     }
 
-    private void Run()
+    private async void Run()
     {
         try
         {
@@ -114,6 +114,46 @@ public sealed partial class ChecksApplication : Application
                 Check(normalizedEmpty.GetPixel(32, 32).A == 0,
                     "Empty icons must remain transparent without invalid cropping.");
             Console.WriteLine("Passed package icon normalization checks.");
+            if (Environment.GetCommandLineArgs().Contains("--action-notices"))
+            {
+                var noticeText = "First action completed";
+                Element Notice() => Component<TransientActionNotice, TransientActionNoticeProps>(new(noticeText)).WithKey("notice");
+                var noticeTree = Notice();
+                UIElement? noticeNative = null;
+                void RenderNotice()
+                {
+                    if (noticeNative is null) return;
+                    var next = Notice();
+                    noticeNative = reconciler.Reconcile(noticeTree, next, noticeNative, RenderNotice)!;
+                    noticeTree = next;
+                }
+                noticeNative = reconciler.Mount(noticeTree, RenderNotice)!;
+                RenderNotice();
+                await new UiDelay(2500);
+                var noticeRoot = noticeNative;
+                var noticeControl = Descendants(noticeNative).OfType<TextBlock>().Single();
+                Check(noticeControl.Visibility == Visibility.Visible, "Action notices must initially be visible.");
+                noticeText = "Second action completed";
+                RenderNotice();
+                await new UiDelay(3000);
+                Check(noticeControl.Visibility == Visibility.Visible && noticeControl.Text == noticeText,
+                    "An earlier timer must not dismiss a newer action notice.");
+                await new UiDelay(2500);
+                Check(noticeControl.Visibility == Visibility.Collapsed,
+                    "Action notices must clear after five seconds.");
+                Check(ReferenceEquals(noticeRoot, noticeNative) && ReferenceEquals(noticeControl, Descendants(noticeNative).OfType<TextBlock>().Single()),
+                    "Notice expiry must retain its native control.");
+                var uninstallCallbacks = 0;
+                var actionTree = Component<ApplicationLaunchActions, ApplicationLaunchActionsProps>(new(app, null, _ => uninstallCallbacks++));
+                var actionNative = reconciler.Mount(actionTree, () => { })!;
+                Check(uninstallCallbacks == 0 && !Descendants(actionNative).OfType<Button>().Any(button => button.Content as string == "Confirm uninstall"),
+                    "Mounting actions must neither uninstall an app nor show inline confirmation controls.");
+                var desktopResult = new MyApps.Services.Packages.ApplicationUninstaller().UninstallAsync(app with { FamilyName = "" }).GetAwaiter().GetResult();
+                Check(!desktopResult.Removed, "A desktop shortcut must not report package removal success.");
+                Console.WriteLine("Passed 6 focused action notification and uninstall checks.");
+                Environment.ExitCode = 0;
+                return;
+            }
             Check(ApplicationManagementPanel.ManagementUri(app).OriginalString == "ms-settings:appsfeatures-app?fixture-family",
                 "App management must target the package family, not the AUMID.");
             Check(ApplicationManagementPanel.ManagementUri(app with { FamilyName = "48996JohnM.Doyle.WebDive_jw9ac53qrz6qt" }).OriginalString
@@ -185,11 +225,10 @@ public sealed partial class ChecksApplication : Application
             Check(Descendants(native).OfType<Button>().Count(button =>
                 Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(button) == "Uninstall Fixture") == 1,
                 "Uninstall must be available beside Launch.");
-            Check(Descendants(native).OfType<StackPanel>().Any(panel => panel.Visibility == Visibility.Collapsed &&
-                panel.Children.OfType<TextBlock>().Any(text => text.Text.StartsWith("Uninstall Fixture for this Windows user?"))),
-                "Destructive confirmation must start hidden and require the Uninstall action.");
+            Check(!Descendants(native).OfType<Button>().Any(button => button.Content as string == "Confirm uninstall"),
+                "Uninstall confirmation must use a modal dialog rather than inline controls.");
             Check(new MyApps.Services.Packages.ApplicationUninstaller().UninstallAsync(app with { FamilyName = "" })
-                .GetAwaiter().GetResult().Contains("Windows Installed apps"),
+                .GetAwaiter().GetResult().Message.Contains("Windows Installed apps"),
                 "Desktop shortcuts must never be sent to package removal.");
 
             foreach (var enabled in new[] { true, false, true })
@@ -335,6 +374,27 @@ public sealed partial class ChecksApplication : Application
         };
         foreach (var child in children)
             foreach (var descendant in Descendants(child)) yield return descendant;
+    }
+
+    // Keep timer assertions on WinUI's dispatcher even when the bare reconciler
+    // installs or restores a synchronization context during a native update.
+    private readonly struct UiDelay(int milliseconds) : System.Runtime.CompilerServices.INotifyCompletion
+    {
+        public UiDelay GetAwaiter() => this;
+        public bool IsCompleted => false;
+        public void GetResult() { }
+        public void OnCompleted(Action continuation)
+        {
+            var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(milliseconds) };
+            timer.Tick += Tick;
+            void Tick(object? sender, object args)
+            {
+                timer.Stop();
+                timer.Tick -= Tick;
+                continuation();
+            }
+            timer.Start();
+        }
     }
 }
 

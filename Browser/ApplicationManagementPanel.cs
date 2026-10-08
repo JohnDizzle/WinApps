@@ -17,18 +17,21 @@ internal sealed class ApplicationManagementPanel : Component<ApplicationManageme
     {
         var busy = UseState(false);
         var message = UseState("");
+        var noticeVersion = UseState(0);
+        void ShowMessage(string text) { noticeVersion.Set(noticeVersion.Value + 1); message.Set(text); }
         var packaged = !string.IsNullOrWhiteSpace(Props.App.FamilyName);
         async void OpenSettings()
         {
             if (busy.Value) return;
             busy.Set(true);
+            ShowMessage("");
             try
             {
                 var opened = await OpenManagementAsync(Props.App, uri => Windows.System.Launcher.LaunchUriAsync(uri).AsTask());
-                message.Set(!opened ? "Windows couldn't open app settings. Open Settings → Apps → Installed apps."
+                ShowMessage(!opened ? "Windows couldn't open app settings. Open Settings → Apps → Installed apps."
                     : packaged ? "" : $"Search Installed apps for {Props.App.Name}. Start menu shortcuts may not have an installed-app entry.");
             }
-            catch (Exception error) { message.Set($"Couldn't open Windows Settings: {error.Message}"); }
+            catch (Exception error) { ShowMessage($"Couldn't open Windows Settings: {error.Message}"); }
             finally { busy.Set(false); }
         }
 
@@ -39,9 +42,9 @@ internal sealed class ApplicationManagementPanel : Component<ApplicationManageme
                 var data = new Windows.ApplicationModel.DataTransfer.DataPackage();
                 data.SetText(Props.App.Name);
                 Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(data);
-                message.Set("App name copied. Paste it into Search apps in Windows Settings.");
+                ShowMessage("App name copied. Paste it into Search apps in Windows Settings.");
             }
-            catch (Exception error) { message.Set($"Couldn't copy the app name: {error.Message}"); }
+            catch (Exception error) { ShowMessage($"Couldn't copy the app name: {error.Message}"); }
         }
 
         return VStack(4,
@@ -54,7 +57,7 @@ internal sealed class ApplicationManagementPanel : Component<ApplicationManageme
                         : "Open Installed apps, then search by name. This shortcut has no package management identity.")),
             Button("Copy app name", CopyName).IsVisible(!packaged).IsEnabled(!busy.Value)
                 .AutomationName($"Copy {Props.App.Name} for Installed apps search").CornerRadius(9).Padding(10)),
-            Text(message.Value).IsVisible(message.Value.Length > 0));
+            Component<TransientActionNotice, TransientActionNoticeProps>(new(message.Value, noticeVersion.Value)).WithKey("management-notice"));
     }
     internal static Uri ManagementUri(InstalledApp app) => new ($"ms-settings:appsfeatures");
     internal static async Task<bool> OpenManagementAsync(InstalledApp app, Func<Uri, Task<bool>> launch)

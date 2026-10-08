@@ -43,6 +43,9 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
         var railAttempt = UseState(0);
         var detailAttempt = UseState(0);
         var compact = UseState(false);
+        var actionNotice = UseState("");
+        var actionNoticeVersion = UseState(0);
+        void NotifyAction(string text) { actionNoticeVersion.Set(actionNoticeVersion.Value + 1); actionNotice.Set(text); }
         void ClearSelection()
         {
             _selectionVersion++;
@@ -61,6 +64,19 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
             if (busy.Value) return;
             ClearSelection();
             status.Set("Application unselected. Choose an application from the list.");
+        }
+
+        async void Uninstalled(InstalledApp app)
+        {
+            var remaining = apps.Value.Where(item => item.FamilyName != app.FamilyName).ToArray();
+            foreach (var item in apps.Value.Where(item => item.FamilyName == app.FamilyName))
+                _applicationCache.Remove(item.FullName);
+            apps.Set(remaining);
+            if (selected.Value?.FamilyName == app.FamilyName) ClearSelection();
+            NotifyAction($"{app.Name} uninstalled.");
+            status.Set($"{remaining.Length} applications in your library.");
+            var cacheNotice = await Task.Run(() => new ApplicationLibraryCache().Save(remaining));
+            if (cacheNotice is not null) NotifyAction(cacheNotice);
         }
 
         async void Scan()
@@ -176,10 +192,10 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
                 footprint.Set(result.ToArray());
                 if (_applicationCache.TryGetValue(app.FullName, out var cached))
                     _applicationCache[app.FullName] = cached with { Footprint = result.ToArray() };
-                status.Set("Logical file bytes measured; shared dependencies and unknown data locations are excluded.");
+                NotifyAction("Logical file bytes measured; shared dependencies and unknown data locations are excluded.");
             }
             catch (OperationCanceledException) { }
-            catch (Exception ex) { if (!token.IsCancellationRequested) status.Set($"Measurement failed: {ex.Message}"); }
+            catch (Exception ex) { if (!token.IsCancellationRequested) NotifyAction($"Measurement failed: {ex.Message}"); }
             finally { if (ReferenceEquals(_actionCancellation, cancellation)) { _actionCancellation = null; actionBusy.Set(false); } }
         }
 
@@ -213,21 +229,21 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
         {
             try
             {
-                if (!Directory.Exists(path)) { status.Set("Folder is unavailable or does not exist."); return; }
+                if (!Directory.Exists(path)) { NotifyAction("Folder is unavailable or does not exist."); return; }
                 Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
             }
-            catch (Exception ex) { status.Set($"Cannot open folder: {ex.Message}"); }
+            catch (Exception ex) { NotifyAction($"Cannot open folder: {ex.Message}"); }
         }
 
         void OpenFile(AppDataFile item)
         {
             try
             {
-                if (!File.Exists(item.FullPath)) { status.Set("File is unavailable or no longer exists."); return; }
+                if (!File.Exists(item.FullPath)) { NotifyAction("File is unavailable or no longer exists."); return; }
                 Process.Start(new ProcessStartInfo(item.FullPath) { UseShellExecute = true, Verb = "open" });
-                status.Set($"Opened {item.RelativePath} with its default application.");
+                NotifyAction($"Opened {item.RelativePath} with its default application.");
             }
-            catch (Exception ex) { status.Set($"Cannot open file with its default application: {ex.Message}"); }
+            catch (Exception ex) { NotifyAction($"Cannot open file with its default application: {ex.Message}"); }
         }
 
         void OpenView(string next) { _actionCancellation?.Cancel(); _actionCancellation = null; actionBusy.Set(false); view.Set(next); file.Set(null); }
@@ -256,7 +272,7 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
                     .WithKey("rail-boundary").IsVisible(Props.NavigationVisible).Flex(shrink: 0),
                 ErrorBoundary(Component<ApplicationDetailPane, ApplicationDetailPaneProps>(new(selected.Value, footprint.Value,
                     inventory.Value, settings.Value, packageConfiguration.Value, file.Value, preview.Value,
-                    view.Value, busy.Value || inspecting.Value || actionBusy.Value, status.Value, OpenView, Measure, OpenFolder, OpenFile, PreviewFile, inspecting.Value, compact.Value, ReloadApplication))
+                    view.Value, busy.Value || inspecting.Value || actionBusy.Value, status.Value, OpenView, Measure, OpenFolder, OpenFile, PreviewFile, inspecting.Value, compact.Value, ReloadApplication, Uninstalled, actionNotice.Value, actionNoticeVersion.Value))
                     .WithKey($"application-detail-{detailAttempt.Value}"),
                     error => Component<ErrorRecoveryPanel, ErrorRecoveryPanelProps>(new("Application details unavailable", error,
                         () => detailAttempt.Set(detailAttempt.Value + 1), RecoverList)))

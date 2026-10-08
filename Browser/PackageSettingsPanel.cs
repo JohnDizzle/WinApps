@@ -17,12 +17,15 @@ internal sealed class PackageSettingsPanel : Component<PackageSettingsPanelProps
         var snapshot = UseState(Props.Snapshot);
         var loading = UseState(false);
         var message = UseState("");
+        var noticeVersion = UseState(0);
+        void ShowMessage(string text) { noticeVersion.Set(noticeVersion.Value + 1); message.Set(text); }
         UseEffect(() => snapshot.Set(Props.Snapshot), Props.Snapshot);
         async void Reload()
         {
             loading.Set(true);
-            try { snapshot.Set(await Task.Run(() => new PackageSettingsReader().Read(Props.FamilyName))); message.Set("Settings reloaded."); }
-            catch (Exception ex) { message.Set(ex.Message); }
+            ShowMessage("");
+            try { snapshot.Set(await Task.Run(() => new PackageSettingsReader().Read(Props.FamilyName))); ShowMessage("Settings reloaded."); }
+            catch (Exception ex) { ShowMessage(ex.Message); }
             finally { loading.Set(false); }
         }
         var current = snapshot.Value;
@@ -30,7 +33,7 @@ internal sealed class PackageSettingsPanel : Component<PackageSettingsPanelProps
             Text($"{current?.Values.Count ?? 0} values / composite members"),
             Text("Edit a value, then Save. Stored types are preserved. Close the target app first; it may overwrite settings when it exits."),
             ActionButton("Reload settings · discard unsaved edits", Reload).IsEnabled(!Props.Disabled && !loading.Value),
-            Text(message.Value),
+            Component<TransientActionNotice, TransientActionNoticeProps>(new(message.Value, noticeVersion.Value)).WithKey("settings-notice"),
             VStack(8, (current?.Values ?? []).GroupBy(item => item.Container).Select(group =>
                 Disclosure(group.Key, VStack(4, new Element[] {
                     FlexRow(TextBlock("Key").SemiBold().Width(220).Flex(shrink: 0),
