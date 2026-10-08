@@ -34,6 +34,25 @@ string Preview(string name, string content, Encoding? encoding = null)
 
 try
 {
+    var notifications = new NotificationQueue();
+    var noticeTime = DateTimeOffset.UtcNow;
+    notifications.Add("First application finished", noticeTime);
+    notifications.Add("Second application finished", noticeTime.AddSeconds(2));
+    Check(notifications.Entries.Count == 2, "A new notification must retain earlier active messages.");
+    notifications.Expire(noticeTime.AddSeconds(5));
+    Check(notifications.Entries.Count == 1 && notifications.Entries[0].Message.StartsWith("Second"),
+        "Earlier notification expiry must not dismiss a newer message.");
+    notifications.Add("Same message", noticeTime.AddSeconds(5));
+    notifications.Add("Same message", noticeTime.AddSeconds(5));
+    Check(notifications.Entries.Select(entry => entry.Id).Distinct().Count() == 3,
+        "Repeated notifications must retain distinct identities.");
+    notifications.Dismiss(notifications.Entries[1].Id);
+    Check(notifications.Entries.Count == 2, "Dismiss must remove only its own notification.");
+    for (var n = 0; n < 8; n++) notifications.Add($"Notice {n}", noticeTime.AddSeconds(5));
+    Check(notifications.Entries.Count == 4 && notifications.Entries[^1].Message == "Notice 7",
+        "Notification stacks must remain bounded and retain the newest messages.");
+    notifications.Expire(noticeTime.AddSeconds(10));
+    Check(notifications.Entries.Count == 0, "Every notification must expire independently.");
     var placementPath = Path.Combine(root, "window.json");
     var placementStore = new WindowPlacementStore(placementPath);
     Check(placementStore.Load() is null, "Missing placement must use startup defaults.");
@@ -64,14 +83,31 @@ try
     using var canceled = new CancellationTokenSource();
     canceled.Cancel();
     var cancellationApp = new InstalledApp("Canceled", "family", "family!App", "Publisher", "1", root, root);
-    var inspectionCanceled = false;
-    try { inspector.Inspect(cancellationApp, canceled.Token); }
-    catch (OperationCanceledException) { inspectionCanceled = true; }
-    Check(inspectionCanceled, "Canceled inventory must stop before reading files");
-    var measurementCanceled = false;
-    try { new FootprintScanner().Scan(cancellationApp, canceled.Token); }
-    catch (OperationCanceledException) { measurementCanceled = true; }
-    Check(measurementCanceled, "Canceled storage measurement must stop before reading files");
+    var canceledInventory = inspector.Inspect(cancellationApp, canceled.Token);
+    Check(canceledInventory.Canceled && canceledInventory.Files.Count == 0 && canceledInventory.Notices.Count == 0,
+        "Canceled inventory must quietly stop without publishing partial files or error notices.");
+    Check(new FootprintScanner().Scan(cancellationApp, canceled.Token).Count == 0,
+        "Canceled storage measurement must quietly stop without publishing partial results.");
+    Check(new FootprintScanner().Measure("Canceled", root, canceled.Token).State == "Canceled",
+        "Canceled folder measurement must report cancellation without throwing.");
+    var lockedRoot = Path.Combine(root, "locked-case");
+    Directory.CreateDirectory(Path.Combine(lockedRoot, "LocalState"));
+    var lockedPath = Path.Combine(lockedRoot, "LocalState", "locked.txt");
+    var readablePath = Path.Combine(lockedRoot, "LocalState", "readable.txt");
+    File.WriteAllText(lockedPath, "private locked contents");
+    File.WriteAllText(readablePath, "readable contents");
+    var lockedEntry = new AppDataFile("LocalState", "locked.txt", lockedPath, 0, DateTime.UtcNow, "Text / log");
+    using (var lockedStream = new FileStream(lockedPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+    {
+        Check(inspector.Preview(lockedEntry).StartsWith("Preview unavailable:"),
+            "Exclusive file locks must produce a useful unavailable preview without throwing.");
+        var lockedInventory = inspector.Inspect(cancellationApp with { DataPath = lockedRoot, InstallPath = "" });
+        Check(lockedInventory.Files.Any(item => item.FullPath == readablePath),
+            "A locked file must not stop inspection of other files.");
+    }
+    File.Delete(lockedPath);
+    Check(inspector.Preview(lockedEntry).StartsWith("Preview unavailable:"),
+        "A file deleted after inventory must produce an unavailable preview without throwing.");
     var location = new SettingLocation("LocalSettings", ["Nested/Name"], "MainWindowHeight");
     var height = new AppSetting("LocalSettings/Nested/Name", "MainWindowHeight", "Int32", "1048", location);
     var settingsMap = new Dictionary<string, object> { [height.Name] = 1048, ["Sibling"] = "untouched" };
@@ -245,6 +281,13 @@ try
 }
 finally
 {
+    var lockedFixture = Path.Combine(root, "locked-case", "LocalState");
+    if (Directory.Exists(lockedFixture))
+    {
+        foreach (var fixtureFile in Directory.GetFiles(lockedFixture)) File.Delete(fixtureFile);
+        Directory.Delete(lockedFixture);
+        Directory.Delete(Path.Combine(root, "locked-case"));
+    }
     // Only remove the individual fixture files created by this test run.
     foreach (var file in Directory.GetFiles(root)) File.Delete(file);
     Directory.Delete(root);

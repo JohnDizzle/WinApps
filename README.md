@@ -56,6 +56,8 @@ Window size, position, and maximized state are saved locally in `%LOCALAPPDATA%\
 
 SQLite adapters and selected-file backup remain planned work. WinApps does not decrypt secrets or retrieve PasswordVault entries. Close a target app before editing its settings; it may overwrite changes when it exits.
 
+Switching applications quietly cancels obsolete inventory work and discards stale results. Locked, missing, or inaccessible files show unavailable information while other files remain inspectable. Action notifications appear in a shared stack, with independent five-second expiry and individual dismissal, across application selections.
+
 ## License
 
 Copyright (c) 2026 John M. Doyle (JohnDizzle) and WinApps contributors.

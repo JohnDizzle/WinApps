@@ -7,6 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../Services/Storage/WindowPlacementStore.cs" Link="Services/WindowPlacementStore.cs" />
+    <Compile Include="../../Services/Storage/NotificationQueue.cs" Link="Services/NotificationQueue.cs" />
     <Compile Include="../../Models/AppDataFile.cs" Link="Models/AppDataFile.cs" />
     <Compile Include="../../Models/InstalledApp.cs" Link="Models/InstalledApp.cs" />
     <Compile Include="../../Services/Storage/AppDataInspector.cs" Link="Services/AppDataInspector.cs" />

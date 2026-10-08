@@ -13,16 +13,10 @@ internal sealed class TransientActionNotice : Component<TransientActionNoticePro
 {
     public override Element Render()
     {
-        var visible = UseState(false);
         UseEffect(() =>
         {
-            visible.Set(Props.Message.Length > 0);
-            var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
-            timer.Tick += Tick;
-            void Tick(object? sender, object args) { timer.Stop(); visible.Set(false); }
-            if (Props.Message.Length > 0) timer.Start();
-            return () => { timer.Stop(); timer.Tick -= Tick; };
+            ActionNotificationStack.Queue.Add(Props.Message, DateTimeOffset.UtcNow);
         }, Props.Message, Props.Version);
-        return Text(Props.Message).IsVisible(visible.Value);
+        return VStack(0).IsVisible(false);
     }
 }

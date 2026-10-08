@@ -148,24 +148,24 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
             {
                 // Let selection and loading indicators render before starting inspection.
                 await Task.Yield();
-                token.ThrowIfCancellationRequested();
+                if (token.IsCancellationRequested) return;
                 var configurationTask = Task.Run(() => new PackageConfigurationReader().Read(app));
-                var filesTask = Task.Run(() => new AppDataInspector().Inspect(app, token), token);
+                var filesTask = Task.Run(() => new AppDataInspector().Inspect(app, token));
                 var settingsTask = Task.Run(() => new PackageSettingsReader().Read(app.FamilyName));
                 async Task PublishFiles()
                 {
                     try
                     {
                         var result = await filesTask;
-                        if (!token.IsCancellationRequested && request == _selectionVersion) inventory.Set(result);
+                        if (!result.Canceled && !token.IsCancellationRequested && request == _selectionVersion) inventory.Set(result);
                     }
                     // The combined inspection below reports errors; this task only publishes files early.
                     catch (Exception) { }
                 }
                 var publishFilesTask = PublishFiles();
-                await Task.WhenAll(configurationTask, filesTask, settingsTask).WaitAsync(token);
+                await Task.WhenAll(configurationTask, filesTask, settingsTask);
                 await publishFilesTask;
-                if (token.IsCancellationRequested || request != _selectionVersion) return;
+                if (token.IsCancellationRequested || filesTask.Result.Canceled || request != _selectionVersion) return;
                 packageConfiguration.Set(configurationTask.Result);
                 inventory.Set(filesTask.Result);
                 settings.Set(settingsTask.Result);
@@ -187,8 +187,8 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
             actionBusy.Set(true);
             try
             {
-                var result = await Task.Run(() => new FootprintScanner().Scan(app, token), token);
-                token.ThrowIfCancellationRequested();
+                var result = await Task.Run(() => new FootprintScanner().Scan(app, token));
+                if (token.IsCancellationRequested) return;
                 footprint.Set(result.ToArray());
                 if (_applicationCache.TryGetValue(app.FullName, out var cached))
                     _applicationCache[app.FullName] = cached with { Footprint = result.ToArray() };
@@ -213,12 +213,12 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
                     && selected.Value is not null)
                 {
                     var family = selected.Value.FamilyName;
-                    var result = await Task.Run(() => new PackageSettingsReader().Read(family)).WaitAsync(token);
-                    token.ThrowIfCancellationRequested();
+                    var result = await Task.Run(() => new PackageSettingsReader().Read(family));
+                    if (token.IsCancellationRequested) return;
                     settings.Set(result);
                     preview.Set("Decoded package values are displayed above, grouped by settings container. Windows reads the live ApplicationData store for this package; this is not an offline file parser.");
                 }
-                else { var result = await Task.Run(() => new AppDataInspector().Preview(item)).WaitAsync(token); token.ThrowIfCancellationRequested(); preview.Set(result); }
+                else { var result = await Task.Run(() => new AppDataInspector().Preview(item)); if (token.IsCancellationRequested) return; preview.Set(result); }
             }
             catch (OperationCanceledException) { }
             catch (Exception ex) { if (!token.IsCancellationRequested) preview.Set($"Preview unavailable: {ex.Message}"); }
@@ -264,6 +264,8 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
             status.Set("Choose an application from the list.");
         }
         return FlexColumn(
+            Component<ActionNotificationStack>().WithKey("notifications")
+                .Margin(left: 12, top: 8, right: 12).Flex(shrink: 0),
             ExplorerLayoutTemplates.Render(compact.Value,
                 ErrorBoundary(Component<ApplicationRail, ApplicationRailProps>(new(apps.Value, selected.Value, inventory.Value,
                     view.Value, busy.Value, Select, Unselect, Scan, PreviewFile, OpenFile, OpenView, inspecting.Value && inventory.Value is null, compact.Value)).WithKey($"application-rail-{railAttempt.Value}"),

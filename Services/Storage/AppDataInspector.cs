@@ -13,7 +13,7 @@ public sealed class AppDataInspector
     public const int MaxPreviewBytes = 65536;
     public AppDataInventory Inspect(InstalledApp app, CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
+        if (cancellationToken.IsCancellationRequested) return new([], [], Canceled: true);
         var files = new List<AppDataFile>();
         var notices = new List<string>();
         if (string.IsNullOrWhiteSpace(app.DataPath))
@@ -21,6 +21,7 @@ public sealed class AppDataInspector
         if (!string.IsNullOrWhiteSpace(app.FamilyName) && !string.IsNullOrWhiteSpace(app.InstallPath))
             foreach (var name in new[] { "registry.dat", "user.dat", "userclasses.dat" })
             {
+                if (cancellationToken.IsCancellationRequested) return new([], [], Canceled: true);
                 var path = Path.Combine(app.InstallPath, name);
                 try
                 {
@@ -42,14 +43,14 @@ public sealed class AppDataInspector
             pending.Push(root);
             while (pending.TryPop(out var folder))
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                if (cancellationToken.IsCancellationRequested) return new([], [], Canceled: true);
                 try
                 {
                     if (ContainsLink(folder))
                     { notices.Add($"Link skipped: {folder}"); continue; }
                     foreach (var path in Directory.EnumerateFileSystemEntries(folder))
                     {
-                        cancellationToken.ThrowIfCancellationRequested();
+                        if (cancellationToken.IsCancellationRequested) return new([], [], Canceled: true);
                         try
                         {
                             var attrs = File.GetAttributes(path);
@@ -118,6 +119,16 @@ public sealed class AppDataInspector
     }
 
     public string Preview(AppDataFile file)
+    {
+        try { return ReadPreview(file); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or
+            System.Security.SecurityException or ArgumentException or NotSupportedException)
+        {
+            return "Preview unavailable: the file is locked, missing, or inaccessible. Other files can still be inspected.";
+        }
+    }
+
+    private static string ReadPreview(AppDataFile file)
     {
         var extension = Path.GetExtension(file.FullPath).ToLowerInvariant();
         if (extension is not (".json" or ".xml" or ".config" or ".txt" or ".log" or ".ini" or ".yaml" or ".yml" or ".csv"))

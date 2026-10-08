@@ -158,7 +158,9 @@ public sealed partial class ChecksApplication : Application
             if (Environment.GetCommandLineArgs().Contains("--action-notices"))
             {
                 var noticeText = "First action completed";
-                Element Notice() => Component<TransientActionNotice, TransientActionNoticeProps>(new(noticeText)).WithKey("notice");
+                Element Notice() => VStack(0,
+                    Component<ActionNotificationStack>().WithKey("stack"),
+                    Component<TransientActionNotice, TransientActionNoticeProps>(new(noticeText)).WithKey("notice"));
                 var noticeTree = Notice();
                 UIElement? noticeNative = null;
                 void RenderNotice()
@@ -172,18 +174,21 @@ public sealed partial class ChecksApplication : Application
                 RenderNotice();
                 await new UiDelay(2500);
                 var noticeRoot = noticeNative;
-                var noticeControl = Descendants(noticeNative).OfType<TextBlock>().Single();
+                var noticeControl = Descendants(noticeNative).OfType<TextBlock>().Single(text => text.Text == noticeText);
                 Check(noticeControl.Visibility == Visibility.Visible, "Action notices must initially be visible.");
                 noticeText = "Second action completed";
                 RenderNotice();
+                await new UiDelay(100);
+                Check(Descendants(noticeNative).OfType<TextBlock>().Count(text => text.Text.EndsWith("action completed")) == 2,
+                    "Notifications must stack instead of replacing the previous app's message.");
                 await new UiDelay(3000);
-                Check(noticeControl.Visibility == Visibility.Visible && noticeControl.Text == noticeText,
+                Check(Descendants(noticeNative).OfType<TextBlock>().Any(text => text.Text == noticeText) &&
+                    !Descendants(noticeNative).OfType<TextBlock>().Any(text => text.Text == "First action completed"),
                     "An earlier timer must not dismiss a newer action notice.");
                 await new UiDelay(2500);
-                Check(noticeControl.Visibility == Visibility.Collapsed,
+                Check(!Descendants(noticeNative).OfType<TextBlock>().Any(text => text.Text.EndsWith("action completed")),
                     "Action notices must clear after five seconds.");
-                Check(ReferenceEquals(noticeRoot, noticeNative) && ReferenceEquals(noticeControl, Descendants(noticeNative).OfType<TextBlock>().Single()),
-                    "Notice expiry must retain its native control.");
+                Check(ReferenceEquals(noticeRoot, noticeNative), "Notice expiry must retain its native root.");
                 var uninstallCallbacks = 0;
                 var actionTree = Component<ApplicationLaunchActions, ApplicationLaunchActionsProps>(new(app, null, _ => uninstallCallbacks++));
                 var actionNative = reconciler.Mount(actionTree, () => { })!;
@@ -191,7 +196,7 @@ public sealed partial class ChecksApplication : Application
                     "Mounting actions must neither uninstall an app nor show inline confirmation controls.");
                 var desktopResult = new MyApps.Services.Packages.ApplicationUninstaller().UninstallAsync(app with { FamilyName = "" }).GetAwaiter().GetResult();
                 Check(!desktopResult.Removed, "A desktop shortcut must not report package removal success.");
-                Console.WriteLine("Passed 6 focused action notification and uninstall checks.");
+                Console.WriteLine("Passed focused stacked notification and uninstall checks.");
                 Environment.ExitCode = 0;
                 return;
             }

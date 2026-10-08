@@ -7,17 +7,21 @@ public sealed class FootprintScanner
 {
     public IReadOnlyList<FolderFootprint> Scan(InstalledApp app, CancellationToken cancellationToken = default)
     {
+        if (cancellationToken.IsCancellationRequested) return [];
         var results = new List<FolderFootprint> { Measure("Installed package", app.InstallPath, cancellationToken) };
         if (!string.IsNullOrWhiteSpace(app.DataPath)) foreach (var name in new[] { "Settings", "LocalState", "RoamingState", "LocalCache", "AC", "TempState" })
+        {
+            if (cancellationToken.IsCancellationRequested) return [];
             results.Add(Measure(name == "TempState" ? "TempState (temporary)" : name, Path.Combine(app.DataPath, name), cancellationToken));
+        }
         if (!string.IsNullOrWhiteSpace(app.DataPath))
             results.Add(Measure("Virtual registry", AppDataInspector.DataFolder(app.DataPath, "Registry"), cancellationToken));
-        return results;
+        return cancellationToken.IsCancellationRequested ? [] : results;
     }
 
     public FolderFootprint Measure(string label, string path, CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
+        if (cancellationToken.IsCancellationRequested) return new(label, path, 0, 0, 0, "Canceled");
         if (string.IsNullOrWhiteSpace(path)) return new(label, path, 0, 0, 0, "Location unknown");
         long bytes = 0, files = 0;
         var skipped = 0;
@@ -36,12 +40,12 @@ public sealed class FootprintScanner
 
         while (folders.TryPop(out var folder))
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            if (cancellationToken.IsCancellationRequested) return new(label, path, 0, 0, 0, "Canceled");
             try
             {
                 foreach (var entry in Directory.EnumerateFileSystemEntries(folder))
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
+                    if (cancellationToken.IsCancellationRequested) return new(label, path, 0, 0, 0, "Canceled");
                     try
                     {
                         var attributes = File.GetAttributes(entry);
