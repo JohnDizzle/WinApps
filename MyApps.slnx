@@ -4,7 +4,7 @@
     <Platform Name="x64" />
     <Platform Name="X86" />
   </Configurations>
-  <Project Path="MyApps.csproj">
+  <Project Path="WinApps.csproj">
     <Platform Solution="*|ARM64" Project="ARM64" />
     <Platform Solution="*|x64" Project="x64" />
     <Platform Solution="*|X86" Project="X86" />
