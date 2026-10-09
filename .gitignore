@@ -5,6 +5,7 @@ obj/
 .idea/
 TestResults/
 artifacts/
+AppPackages/
 *.suo
 *.log
 .env

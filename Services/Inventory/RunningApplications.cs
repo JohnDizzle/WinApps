@@ -15,6 +15,7 @@ internal static class RunningApplications
     {
         if (cancellationToken.IsCancellationRequested) return [];
         var results = new List<RunningApplication>();
+        var windows = app is null ? ApplicationWindows.Read() : null;
         var folder = string.IsNullOrWhiteSpace(app?.InstallPath) ? null : System.IO.Path.GetFullPath(app.InstallPath).TrimEnd('\\') + "\\";
         var processes = Process.GetProcesses();
         try
@@ -29,8 +30,17 @@ internal static class RunningApplications
                     // Existing homepage cards retain their resource snapshot. Only new
                     // windowed processes need paths, icons, and measurements.
                     if (excludedIds?.Contains(process.Id) == true) continue;
+                    var handle = process.MainWindowHandle;
                     var title = process.MainWindowTitle;
-                    if (app is null && (process.MainWindowHandle == IntPtr.Zero || title.Length == 0)) continue;
+                    if (app is null)
+                    {
+                        if (!windows!.TryGetValue(process.Id, out var visible)) continue;
+                        if (process.ProcessName.Equals("msedgewebview2", StringComparison.OrdinalIgnoreCase)) continue;
+                        handle = visible.Handle;
+                        title = visible.Title;
+                    }
+                    if (app is null && (handle == IntPtr.Zero || title.Length == 0)) continue;
+                    if (app is null && process.ProcessName.Equals("ApplicationFrameHost", StringComparison.OrdinalIgnoreCase)) continue;
                     if (app is not null && folder is null) continue;
                     string path;
                     try { path = process.MainModule?.FileName ?? ""; } catch { path = ""; }
@@ -48,7 +58,7 @@ internal static class RunningApplications
                     }
                     results.Add(new(process.Id, process.StartTime.ToUniversalTime().Ticks, app?.Name ?? name,
                         title, path, process.WorkingSet64, process.Threads.Count, includePresentation ? app?.IconUri ?? ApplicationIcons.DesktopIcon(path) : null,
-                        process.TotalProcessorTime.Ticks, WindowHandle: process.MainWindowHandle));
+                        process.TotalProcessorTime.Ticks, WindowHandle: handle));
                 }
                 catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException or NotSupportedException) { }
             }

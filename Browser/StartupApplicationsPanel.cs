@@ -56,7 +56,7 @@ internal sealed class StartupApplicationsPanel : Component
             {
                 try { if (!await Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:startupapps"))) message.Set("Windows couldn't open startup settings."); }
                 catch (Exception error) { message.Set($"Couldn't open startup settings: {error.Message}"); }
-            }),
+            }).WithKey("open-windows-startup-settings"),
             Text(message.Value).IsVisible(message.Value.Length > 0),
             VStack(4, (snapshot.Value?.Notices ?? []).Select(notice => Text(notice).WithKey(notice)).ToArray()));
     }

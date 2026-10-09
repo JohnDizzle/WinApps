@@ -17,11 +17,12 @@
             majority of dev machines. ARM64 second for Snapdragon X. X86 retained for parity
             with the WinUI 3 templates even though Reactor itself is only tested on x64 / ARM64.
         -->
-        <Platforms>x64;ARM64;X86</Platforms>
+        <Configurations>Debug;Release;WinApps</Configurations>
+        <Platforms>x64;arm64;x86</Platforms>
         <UseWinUI>true</UseWinUI>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <WindowsPackageType Condition="'$(WindowsPackageType)' == ''">MSIX</WindowsPackageType>
-        <EnableMsixTooling Condition="'$(WindowsPackageType)' == 'MSIX'">true</EnableMsixTooling>
+        <EnableMsixTooling>true</EnableMsixTooling>
         <WinAppsPackageManifest Condition="'$(WinAppsPackageManifest)' == ''">Package.appxmanifest</WinAppsPackageManifest>
         <GenerateTemporaryStoreCertificate>false</GenerateTemporaryStoreCertificate>
         <AppxAutoIncrementPackageRevision>false</AppxAutoIncrementPackageRevision>
@@ -57,10 +58,29 @@
             self-contained build path requires a concrete RID.
         -->
         <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' And ('$(Platform)' == '' Or '$(Platform)' == 'AnyCPU' Or '$(Platform)' == 'Any CPU')">$(NETCoreSdkPortableRuntimeIdentifier)</RuntimeIdentifier>
+        <GenerateAppInstallerFile>False</GenerateAppInstallerFile>
+        <AppxPackageSigningTimestampDigestAlgorithm>SHA256</AppxPackageSigningTimestampDigestAlgorithm>
+        <GenerateTestArtifacts>False</GenerateTestArtifacts>
+        <HoursBetweenUpdateChecks>0</HoursBetweenUpdateChecks>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Platform)' == 'x64'">
+        <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
+        <PlatformTarget>x64</PlatformTarget>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Platform)' == 'arm64'">
+        <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-arm64</RuntimeIdentifier>
+        <PlatformTarget>ARM64</PlatformTarget>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Platform)' == 'x86'">
+        <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x86</RuntimeIdentifier>
+        <PlatformTarget>x86</PlatformTarget>
     </PropertyGroup>
     <!-- </snippet:template-shape> -->
 
     <ItemGroup>
+        <Content Include="Package.StoreAssociation.xml">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
         <Content Include="privacy.html;license.html;features.html;site.css" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
         <Content Include="Assets/*.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
         <EmbeddedResource Include="Resources/ui-resources.json" LogicalName="WinApps.UiResources" />
@@ -68,6 +88,7 @@
         <Compile Remove="tests/**/*.cs;artifacts/**/*.cs" />
         <Page Remove="tests/**;artifacts/**" />
         <ApplicationDefinition Remove="tests/**;artifacts/**" />
+        <None Remove="Package.StoreAssociation.xml" />
         <PackageReference Include="System.Drawing.Common" Version="10.0.12" />
         <PackageReference Include="Microsoft.Windows.CsWin32" Version="0.3.335" PrivateAssets="all" />
         <AdditionalFiles Include="NativeMethods.txt" />
@@ -90,8 +111,18 @@
         <PackageReference Include="Microsoft.UI.Reactor.Devtools" Version="0.1.0-preview.12" />
         <RuntimeHostConfigurationOption Include="Reactor.DevtoolsSupport" Value="true" Trim="true" />
     </ItemGroup>
+    <ItemGroup Condition="'$(Configuration)'=='WinApps'">
+      <PackageReference Include="Microsoft.UI.Reactor.Devtools">
+        <Version>0.1.0-preview.12</Version>
+      </PackageReference>
+      <RuntimeHostConfigurationOption Include="Reactor.DevtoolsSupport">
+        <Value>true</Value>
+        <Trim>true</Trim>
+      </RuntimeHostConfigurationOption>
+    </ItemGroup>
 
     <ItemGroup Condition="'$(WindowsPackageType)' == 'MSIX'">
+        <StoreAssociationFile Include="Package.StoreAssociation.xml" />
         <AppxManifest Include="$(WinAppsPackageManifest)"><SubType>Designer</SubType></AppxManifest>
         <Content Include="LICENSE;THIRD_PARTY_NOTICES.md;docs/licenses/*" />
     </ItemGroup>

@@ -4,3 +4,11 @@ SetForegroundWindow
 GetWindowThreadProcessId
 IsWindow
 IsWindowVisible
+EnumWindows
+EnumChildWindows
+GetWindowText
+GetClassName
+GetShellWindow
+GetWindow
+GetWindowLong
+DwmGetWindowAttribute

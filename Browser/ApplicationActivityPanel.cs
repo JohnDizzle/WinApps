@@ -98,6 +98,23 @@ internal sealed class ApplicationActivityPanel : Component<ApplicationActivityPa
                 entries.Set(_snapshot.ToArray());
             }
             BrowserMotion.ActivityListAcknowledged += Acknowledge;
+            async void ExpireHighlight(RunningApplication[] additions)
+            {
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(3));
+                    if (token.IsCancellationRequested) return;
+                    dispatcher.TryEnqueue(() =>
+                    {
+                        if (disposed) return;
+                        var changed = false;
+                        foreach (var item in additions)
+                            changed |= _newApps.Remove((item.Id, item.Started));
+                        if (changed) entries.Set(_snapshot.ToArray());
+                    });
+                }
+                catch (OperationCanceledException) { }
+            }
             async void Refresh()
             {
                 if (reading) return;
@@ -142,6 +159,7 @@ internal sealed class ApplicationActivityPanel : Component<ApplicationActivityPa
                         _revealNewCards = additions.Length > 0;
                         entries.Set(_snapshot);
                         PublishSummary();
+                        if (additions.Length > 0) ExpireHighlight(additions);
                     });
                 }
                 catch (Exception) { dispatcher.TryEnqueue(() => { reading = false; }); }

@@ -83,9 +83,9 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
         {
             if (ClearButtons.TryGetValue(control, out _)) return;
             ClearButtons.Add(control, new object());
-            control.Click += (_, _) =>
+            RoutedEventHandler click = (_, _) =>
             {
-                if (_clearing) return;
+                if (_clearing || Props.Selected is null) return;
                 control.IsEnabled = false;
                 var indicator = new Microsoft.UI.Xaml.Controls.StackPanel { Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal, Spacing = 8 };
                 indicator.Children.Add(new Microsoft.UI.Xaml.Controls.ProgressRing { IsActive = true, Width = 18, Height = 18 });
@@ -94,6 +94,15 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                 BrowserMotion.CardSelectionFeedback(control, true);
                 Unselect();
             };
+            control.Click += click;
+            RoutedEventHandler? unloaded = null;
+            unloaded = (_, _) =>
+            {
+                control.Click -= click;
+                control.Unloaded -= unloaded;
+                ClearButtons.Remove(control);
+            };
+            control.Unloaded += unloaded;
         }
         void Scan()
         {
@@ -239,7 +248,7 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                 TextBlock($"{apps.Length} apps in your library").Foreground(Theme.SecondaryText),
                 TextBox(search.Value, Filter, placeholderText: "Search your library").AutomationName("Search applications"),
                 ActionButton(busy ? "Working…" : "Refresh applications", Scan).AutomationName("Refresh applications").IsEnabled(!busy),
-                Slot("unselect", selected is not null ? ActionButton("Clear selection", () => { }).IsEnabled(!busy).Set(AttachClearButton) : Text("")),
+                Slot("unselect", selected is not null ? ActionButton("Clear selection", () => { }).WithKey("clear-application-selection").IsEnabled(!busy).Set(AttachClearButton) : Text("")),
                 ScrollView(VStack(14,
                 Disclosure("Open Apps List", keyboard, !filtering && appsListOpen.Value, expanded =>
                     { appsListOpen.Set(expanded); if (expanded) appFilesOpen.Set(false); })

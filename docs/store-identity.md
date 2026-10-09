@@ -13,9 +13,11 @@ These values were supplied by the maintainer's Partner Center product identity s
 | Store URL | <https://apps.microsoft.com/detail/9NWZ6MZV4BVN> |
 | Store protocol link | `ms-windows-store://pdp/?productid=9NWZ6MZV4BVN` |
 
-The recorded Store link does not establish that a release is published or available. Confirm the identity in Partner Center when preparing a submission. The manifest defaults to version `1.0.0.0`, x64, application Id `App`, executable `MyApps.exe`, and the desktop `runFullTrust` capability. The packaging script supports x64 and ARM64 and overrides version/architecture for each build. ARM64 runtime behavior remains unverified.
+The recorded Store link does not establish that a release is published or available. Confirm the identity in Partner Center when preparing a submission. The manifest defaults to version `1.0.0.0`, x64, application Id `App`, executable `WinApps.exe`, and the desktop `runFullTrust` capability. The packaging script supports x64 and ARM64 and overrides version/architecture for each build. ARM64 runtime behavior remains unverified.
 
 Package family name and SID are derived identities; they are not additional `Identity` manifest attributes. No MSA client ID is configured because the app currently has no Microsoft-account authentication feature.
+
+`Package.StoreAssociation.xml` provides the local Visual Studio Store association for WinApps. It was adapted from the maintainer's LinkScape association file with the WinApps reserved name, package identity, and product ID shown in Partner Center. The project registers it as a `StoreAssociationFile`. Reload the project before reopening Create App Packages. This supplies local association metadata; it does not repair Store API authentication or connectivity, submit a package, or confirm Store acceptance. If the wizard still requires a failed online lookup, use `scripts/Build-Msix.ps1 -Unsigned` to build locally and upload the resulting package through Partner Center.
 
 Signing uses an existing code-signing certificate in `Cert:\CurrentUser\My` whose subject exactly matches the Store publisher, has a private key, and is currently valid. Pass `-CertificateThumbprint` to select it explicitly; otherwise the script prefers an already trusted matching certificate, then the latest expiry. It does not export the private key or change certificate trust. Use `-Unsigned` to prepare a package for Store signing; this does not submit or publish it.
 
