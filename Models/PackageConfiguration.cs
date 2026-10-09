@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-namespace MyApps.Models;
+namespace WinApps.Models;
 
 public sealed record PackageConfigurationSection(string Title, string Details);
 public sealed record PackageConfiguration(string ManifestPath, string ApplicationType, string TrustLevel,

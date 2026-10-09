@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using Windows.Management.Deployment;
-using MyApps.Models;
+using WinApps.Models;
 
-namespace MyApps.Services.Packages;
+namespace WinApps.Services.Packages;
 
 public sealed class PackageCatalog
 {
@@ -24,7 +24,7 @@ public sealed class PackageCatalog
                     string.IsNullOrWhiteSpace(entry.DisplayInfo.DisplayName) ? id.Name : entry.DisplayInfo.DisplayName,
                     id.FamilyName, entry.AppUserModelId, id.Publisher,
                     $"{version.Major}.{version.Minor}.{version.Build}.{version.Revision}",
-                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Packages", id.FamilyName), package.InstalledLocation.Path, IconUri: MyApps.Services.Icons.ApplicationIcons.PackageIcon(entry, $"{id.FullName}|{entry.AppUserModelId}")));
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Packages", id.FamilyName), package.InstalledLocation.Path, IconUri: WinApps.Services.Icons.ApplicationIcons.PackageIcon(entry, $"{id.FullName}|{entry.AppUserModelId}")));
             }
             // Windows can retain registrations whose package files or resources are missing.
             catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException

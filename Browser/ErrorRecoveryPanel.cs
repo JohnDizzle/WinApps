@@ -2,9 +2,9 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using static Microsoft.UI.Reactor.Factories;
-using static MyApps.Browser.BrowserUi;
+using static WinApps.Browser.BrowserUi;
 
-namespace MyApps.Browser;
+namespace WinApps.Browser;
 
 internal sealed record ErrorRecoveryPanelProps(string Title, Exception Error, Action Retry, Action? Back);
 

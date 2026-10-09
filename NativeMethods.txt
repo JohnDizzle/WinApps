@@ -1,0 +1,6 @@
+IsIconic
+ShowWindowAsync
+SetForegroundWindow
+GetWindowThreadProcessId
+IsWindow
+IsWindowVisible

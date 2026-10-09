@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using System.Runtime.InteropServices;
-using MyApps.Models;
-using MyApps.Services.Icons;
+using WinApps.Models;
+using WinApps.Services.Icons;
 
-namespace MyApps.Services.Inventory;
+namespace WinApps.Services.Inventory;
 
 public sealed class StartMenuCatalog
 {

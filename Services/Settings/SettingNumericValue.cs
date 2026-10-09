@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using System.Globalization;
 
-namespace MyApps.Services.Settings;
+namespace WinApps.Services.Settings;
 
 public static class SettingNumericValue
 {

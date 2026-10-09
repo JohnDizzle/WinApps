@@ -2,7 +2,7 @@
 using System.Globalization;
 using System.Text.Json;
 
-namespace MyApps.Services.Settings;
+namespace WinApps.Services.Settings;
 
 public static class SettingValueCodec
 {

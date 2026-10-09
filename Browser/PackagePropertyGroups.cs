@@ -3,11 +3,11 @@ using System.Xml;
 using System.Xml.Linq;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
-using MyApps.Models;
+using WinApps.Models;
 using static Microsoft.UI.Reactor.Factories;
-using static MyApps.Browser.BrowserUi;
+using static WinApps.Browser.BrowserUi;
 
-namespace MyApps.Browser;
+namespace WinApps.Browser;
 
 internal sealed record PackagePropertyGroupsProps(IReadOnlyList<PackageConfigurationSection> Sections,
     string? Layout = null);

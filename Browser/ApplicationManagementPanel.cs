@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
-using MyApps.Models;
+using WinApps.Models;
 using System.Diagnostics;
 using System.Text.Encodings.Web;
 using static Microsoft.UI.Reactor.Factories;
-using static MyApps.Browser.BrowserUi;
+using static WinApps.Browser.BrowserUi;
 
-namespace MyApps.Browser;
+namespace WinApps.Browser;
 
 internal sealed record ApplicationManagementPanelProps(InstalledApp App);
 

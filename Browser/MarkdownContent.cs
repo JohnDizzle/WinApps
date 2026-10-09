@@ -4,9 +4,9 @@ using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml.Documents;
 using static Microsoft.UI.Reactor.Factories;
-using static MyApps.Browser.BrowserUi;
+using static WinApps.Browser.BrowserUi;
 
-namespace MyApps.Browser;
+namespace WinApps.Browser;
 
 // Renders the authored documentation subset: headings, paragraphs, bullets,
 // bold text, HTTPS links, and fenced code. It never interprets HTML.

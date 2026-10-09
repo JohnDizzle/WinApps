@@ -3,9 +3,9 @@ using System.Text;
 using System.Text.Json;
 using System.Xml;
 using System.Xml.Linq;
-using MyApps.Models;
+using WinApps.Models;
 
-namespace MyApps.Services.Storage;
+namespace WinApps.Services.Storage;
 
 public sealed class AppDataInspector
 {

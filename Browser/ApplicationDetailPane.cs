@@ -3,49 +3,81 @@ using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
-using MyApps.Models;
-using MyApps.Services.Storage;
+using WinApps.Models;
+using WinApps.Services.Storage;
 using static Microsoft.UI.Reactor.Factories;
 
-using static MyApps.Browser.BrowserUi;
+using static WinApps.Browser.BrowserUi;
 
-namespace MyApps.Browser;
+namespace WinApps.Browser;
 
 internal sealed record ApplicationDetailPaneProps(InstalledApp? Selected, FolderFootprint[] Footprint,
     AppDataInventory? Inventory, AppSettingsSnapshot? Settings, PackageConfiguration? PackageConfiguration,
     AppDataFile? File, string Preview, string View, bool Busy, string Status, Action<string> OnView,
     Action OnMeasure, Action<string> OnOpenFolder, Action<AppDataFile> OnOpenFile, Action<AppDataFile> OnPreviewFile,
     bool Loading = false, bool Compact = false, Action? OnReloadApplication = null,
-    Action<InstalledApp>? OnUninstalled = null, string ActionNotice = "", int ActionNoticeVersion = 0);
+    Action<InstalledApp>? OnUninstalled = null, string ActionNotice = "", int ActionNoticeVersion = 0,
+    InstalledApp[]? Apps = null, Action<InstalledApp>? OnSelect = null, Action? OnClearSelection = null,
+    WinApps.Services.Inventory.RunningApplication[]? InitialActivity = null,
+    Action<InstalledApp, WinApps.Services.Inventory.RunningApplication[]>? OnSelectActivity = null);
 
 internal sealed class ApplicationDetailPane : Component<ApplicationDetailPaneProps>
 {
     private Microsoft.UI.Xaml.Controls.ScrollView? _contentScroll;
+    private string? _backSelectionKey;
+    private bool _returningHome;
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Microsoft.UI.Xaml.Controls.Button, object> BackButtons = new();
+
+    private void AttachBackButton(Microsoft.UI.Xaml.Controls.Button button)
+    {
+        void ShowReturning()
+        {
+            button.IsEnabled = false;
+            button.Content = new Microsoft.UI.Xaml.Controls.ProgressRing { IsActive = true, Width = 18, Height = 18 };
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, "Returning to applications…");
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetItemStatus(button, "Loading");
+            Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(button, "Returning to applications…");
+            BrowserMotion.CardSelectionFeedback(button, true);
+        }
+        if (_returningHome) ShowReturning();
+        else
+        {
+            Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(button, "Back to applications · Clear selection");
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetItemStatus(button, "");
+        }
+        if (BackButtons.TryGetValue(button, out _)) return;
+        BackButtons.Add(button, new object());
+        button.Click += (_, _) =>
+        {
+            if (_returningHome || Props.Selected is null) return;
+            _returningHome = true;
+            var appKey = Props.Selected.FullName;
+            ShowReturning();
+            button.DispatcherQueue.TryEnqueue(() =>
+            {
+                if (Props.Selected?.FullName == appKey) Props.OnClearSelection?.Invoke();
+            });
+        };
+    }
 
     public override Element Render()
     {
         var selected = Props.Selected;
+        if (_backSelectionKey != selected?.FullName)
+        {
+            _backSelectionKey = selected?.FullName;
+            _returningHome = false;
+        }
         var padding = Props.Compact ? 12 : 24;
         var layout = UseState("Rows");
         var resourceStatus = UseState("");
         var resourceVersion = UseState(0);
+        var activitySummary = UseState("Reading application activity…");
         void ReloadResources()
         {
             resourceStatus.Set("");
             try { UiResources.Reload(); resourceVersion.Set(resourceVersion.Value + 1); resourceStatus.Set("Resources reloaded."); Props.OnReloadApplication?.Invoke(); }
             catch (Exception error) { resourceStatus.Set($"Resources were not changed: {error.Message}"); }
-        }
-        void OpenFeatures()
-        {
-            try
-            {
-                Process.Start(new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory, "features.html"))
-                    { UseShellExecute = true });
-            }
-            catch (Exception)
-            {
-                resourceStatus.Set("Couldn't open Features. Check your default browser and try again.");
-            }
         }
         ButtonElement DocumentationLink(string key)
         {
@@ -71,30 +103,14 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
         void OpenFile(AppDataFile item) => Props.OnOpenFile(item);
         ButtonElement FilePreviewButton(AppDataFile item, bool showDetails = false) => BrowserUi.FilePreviewButton(item, Props.OnPreviewFile, busy, showDetails);
         Element OpenFileButton(AppDataFile item) => BrowserUi.OpenFileButton(item, Props.OnOpenFile, busy);
-        Element content = Section("Explore your applications",
-            Text("Browse installed apps, inspect package details and local files, and edit supported settings with an explicit Save."),
-            TextBlock("Select an application from the list to get started.").TextWrapping().Foreground(Theme.SecondaryText),
-            GlassButton(ActionButton("Features & getting started", OpenFeatures)).HAlign(HorizontalAlignment.Left));
+        Element content = Component<ApplicationActivityPanel, ApplicationActivityPanelProps>(new(OnSummary: value => activitySummary.Set(value),
+            Apps: Props.Apps, OnSelect: Props.OnSelect, OnSelectActivity: Props.OnSelectActivity)).WithKey("pc-activity");
         if (selected is not null)
         {
             if (view == "Overview")
-                content = VStack(16, Section("Application information",
-                    DetailRow("Version", selected.Version), DetailRow("Publisher", selected.Publisher),
-                    DetailRow("Source", selected.Source),
-                    Disclosure("Application identity", ReadOnlyText(selected.FullName, "Application identity"))),
-                    string.IsNullOrWhiteSpace(selected.FamilyName) ? Section("Desktop application",
-                        Text("This entry comes from desktop registration or a Start menu shortcut. Windows app repair and reset options may not be available.")) : Section("Package information",
-                        Text($"Application type: {packageConfiguration?.ApplicationType ?? "Loading…"}"),
-                        Text($"Trust / AppContainer: {packageConfiguration?.TrustLevel ?? "Loading…"}"),
-                        Text($"UI framework: {packageConfiguration?.UiFramework ?? "Loading…"}"),
-                        Text(packageConfiguration?.ResourceQueryCompleted == true
-                            ? $"Related resource packages: {packageConfiguration.ResourcePackages?.Count ?? 0} installed for this user"
-                            : "Related resource packages: discovery unavailable or still loading"),
-                        ActionButton("View package manifest and configuration", () => setView("Package")).IsEnabled(!busy)),
-                    Section("Files and locations",
-                    DetailRow("Installed folder", selected.InstallPath),
-                    ActionButton("Open installed folder", () => OpenFolder(selected.InstallPath)).IsEnabled(!string.IsNullOrEmpty(selected.InstallPath)),
-                    DetailRow("App data folder", string.IsNullOrEmpty(selected.DataPath) ? "No app data folder identified" : selected.DataPath)));
+                content = VStack(12,
+                    Component<ApplicationResourceCard, ApplicationResourceCardProps>(new(selected, Props.InitialActivity)).WithKey($"footprint-{selected.FullName}"),
+                    Component<ApplicationOverviewCards, ApplicationOverviewCardsProps>(new(selected, packageConfiguration, Props.Compact, busy, setView, OpenFolder)).WithKey($"overview-cards-{selected.FullName}"));
             else if (view == "Package")
                 content = Section("MSIX package · configuration and manifest",
                     Text(packageConfiguration?.ManifestPath ?? "Loading package configuration…"),
@@ -188,15 +204,27 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
 
         return
                 FlexColumn(
-                    Card(VStack(10,
+                    Border(VStack(8,
                     (Props.Compact ? FlexColumn() : FlexRow()) with { Children = new Element[] {
-                        HStack(12, Slot("heading-icon", selected is null ? Icon(FontIcon("\uE71D", "Segoe Fluent Icons")).Width(32).Height(32) : AppIcon(selected, 32)),
+                        HStack(12,
+                            Slot("back-home", selected is not null && Props.OnClearSelection is not null
+                                ? GlassButton(Button(FluentGlyph("\uE72B"), () => { }))
+                                    .Width(36).Height(36).Padding(0).CornerRadius(9).AutomationName("Back to applications")
+                                    .IsEnabled(!_returningHome)
+                                    .Set(AttachBackButton)
+                                : Text("").IsVisible(false)),
+                            Slot("heading-icon", selected is null ? Icon(FontIcon("\uE71D", "Segoe Fluent Icons")).Width(32).Height(32) : AppIcon(selected, 32)),
                             VStack(4, TextBlock(selected?.Name ?? "WinApps").FontSize(22).SemiBold(),
-                                TextBlock(selected is null ? "Your installed applications, settings, and storage" :
+                                TextBlock(selected is null ? activitySummary.Value :
                                     string.IsNullOrWhiteSpace(selected.FamilyName) ? "Desktop application · This PC" : "Packaged application · This PC")
-                                    .FontSize(12).TextWrapping().Foreground(Theme.SecondaryText))).Flex(grow: 1, basis: 0),
+                                    .FontSize(12).TextWrapping().Foreground(Theme.SecondaryText),
+                                TextBlock(status).FontSize(12).TextWrapping().Foreground(Theme.SecondaryText)
+                                    .IsVisible(selected is null))).Flex(grow: 1, basis: 0),
                         HStack(8, Slot("app-management", selected is not null ? Component<ApplicationManagementPanel, ApplicationManagementPanelProps>(new(selected))
                             .WithKey($"management-{selected.FullName}") : Text("")).IsEnabled(!Props.Loading),
+                        Slot("desktop-terminate", selected is not null && string.IsNullOrWhiteSpace(selected.FamilyName)
+                            ? Component<ApplicationTerminateAction, ApplicationTerminateActionProps>(new(selected)).WithKey($"desktop-terminate-{selected.FullName}")
+                            : Text("").IsVisible(false)),
                         Slot("launch-actions", selected is not null ? Component<ApplicationLaunchActions, ApplicationLaunchActionsProps>(new(selected, packageConfiguration, Props.OnUninstalled))
                             .WithKey(selected.FullName) : Text(""))
                             .IsEnabled(!Props.Loading).IsVisible(selected is not null && !string.IsNullOrWhiteSpace(selected.FamilyName))).Flex(shrink: 0)
@@ -207,8 +235,8 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                             {
                                 BrowserMotion.Enable(control);
                                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetItemStatus(control, view == tab ? "Selected" : "");
-                            }).CornerRadius(9).Padding(14)
-                            .AutomationName($"View {tab}").IsEnabled(selected is not null).WithKey(tab)).ToArray()).Margin(bottom: 8))
+                            }).CornerRadius(9).Padding(10)
+                            .AutomationName($"View {tab}").IsEnabled(selected is not null).WithKey(tab)).ToArray()))
                         .Set(control =>
                         {
                             control.ContentOrientation = Microsoft.UI.Xaml.Controls.ScrollingContentOrientation.Horizontal;
@@ -226,13 +254,16 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                         .Background(Theme.LayerFill).WithBorder(Theme.CardStroke)))
                         .Padding(4).VAlign(VerticalAlignment.Top).Flex(shrink: 0)),
                     Component<TransientActionNotice, TransientActionNoticeProps>(new(resourceStatus.Value, resourceVersion.Value)).WithKey("resource-notice")
-                    ).Padding(16)).Background(Theme.CardBackground).WithBorder(Theme.CardStroke).CornerRadius(12)
+                    ).Padding(12)).Background(Theme.CardBackground).WithBorder(Theme.CardStroke).CornerRadius(12)
                         .Margin(left: padding, top: 12, right: padding).Flex(shrink: 0),
-                ScrollView(VStack(20,
-                    TextBlock(status).TextWrapping().FontSize(12).Foreground(Theme.SecondaryText).Margin(left: 4),
-                    Component<TransientActionNotice, TransientActionNoticeProps>(new(Props.ActionNotice, Props.ActionNoticeVersion)).WithKey("library-action-notice"),
-                    VStack(0, content).Set(BrowserMotion.Enable).WithKey($"content-{selected?.FullName ?? "library"}-{view}-{resourceVersion.Value}")
-                ).Padding(padding)).Set(control => _contentScroll = control).MinWidth(0).Flex(grow: 1, basis: 0)).MinWidth(0).Flex(grow: 1, basis: 0);
+                ScrollView(VStack(12,
+                    VStack(0,
+                    TextBlock(status).TextWrapping().FontSize(12).Foreground(Theme.SecondaryText).Margin(left: 4).IsVisible(selected is not null),
+                    Component<TransientActionNotice, TransientActionNoticeProps>(new(Props.ActionNotice, Props.ActionNoticeVersion)).WithKey("library-action-notice"))
+                        .IsVisible(selected is not null || !string.IsNullOrWhiteSpace(Props.ActionNotice)),
+                    VStack(0, content).Set(control => { BrowserMotion.Enable(control); BrowserMotion.SlideEntrance(control); })
+                        .WithKey($"content-{selected?.FullName ?? "library"}-{view}-{resourceVersion.Value}")
+                ).Padding(left: padding, top: 12, right: padding, bottom: padding)).Set(control => _contentScroll = control).MinWidth(0).Flex(grow: 1, basis: 0)).MinWidth(0).Flex(grow: 1, basis: 0);
     }
 
     private static void OpenDocumentation(string url) =>

@@ -2,11 +2,11 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
-using MyApps.Models;
+using WinApps.Models;
 using static Microsoft.UI.Reactor.Factories;
 
 
-namespace MyApps.Browser;
+namespace WinApps.Browser;
 
 internal static class BrowserUi
 {
@@ -77,6 +77,6 @@ internal static class BrowserUi
     public static Element AppIcon(InstalledApp app, double size = 32) => app.IconUri is null
             ? Icon(FontIcon("\uE71D", "Segoe Fluent Icons")).Width(size).Height(size)
             : Image(string.IsNullOrWhiteSpace(app.FamilyName) ? app.IconUri
-                : MyApps.Services.Icons.ApplicationIcons.NormalizeCachedPackageIcon(app.IconUri))
+                : WinApps.Services.Icons.ApplicationIcons.NormalizeCachedPackageIcon(app.IconUri))
                 .AutomationName($"{app.Name} icon").Width(size).Height(size);
 }

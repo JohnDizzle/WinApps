@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using System.Text.Json;
-using MyApps.Models;
+using WinApps.Models;
 
-namespace MyApps.Services.Inventory;
+namespace WinApps.Services.Inventory;
 
 public sealed class ApplicationLibraryCache
 {
     private readonly string path;
     public ApplicationLibraryCache(string? path = null) => this.path = path ?? Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyApps", "library.json");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WinApps", "library.json");
 
     public sealed record Snapshot(int SchemaVersion, DateTimeOffset SavedAt, InstalledApp[] Apps);
 

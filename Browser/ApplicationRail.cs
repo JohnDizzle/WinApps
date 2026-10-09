@@ -2,12 +2,12 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
-using MyApps.Models;
+using WinApps.Models;
 using static Microsoft.UI.Reactor.Factories;
 
-using static MyApps.Browser.BrowserUi;
+using static WinApps.Browser.BrowserUi;
 
-namespace MyApps.Browser;
+namespace WinApps.Browser;
 
 internal sealed record ApplicationRailProps(InstalledApp[] Apps, InstalledApp? Selected, AppDataInventory? Inventory,
     string View, bool Busy, Action<InstalledApp> OnSelect, Action OnUnselect, Action OnRefresh,
@@ -16,7 +16,16 @@ internal sealed record ApplicationRailProps(InstalledApp[] Apps, InstalledApp? S
 internal sealed class ApplicationRail : Component<ApplicationRailProps>
 {
     private Microsoft.UI.Xaml.Controls.ScrollView? _railScroll;
+    private Microsoft.UI.Xaml.Controls.ListView? _railList;
     private bool _resetScroll;
+    private bool _clearing;
+    private string? _lastSelectionKey;
+    private string? _pendingRevealKey;
+    private bool _lastFilesOpen;
+    private bool _followSelection;
+    private sealed class ListActions { public Action<int>? Select; public InstalledApp[] Apps = []; }
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Microsoft.UI.Xaml.Controls.ListView, ListActions> Lists = new();
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Microsoft.UI.Xaml.Controls.Button, object> ClearButtons = new();
     public override Element Render()
     {
         var letter = UseState("All");
@@ -26,7 +35,18 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
         var expandedAreas = UseState(Array.Empty<string>());
         var apps = Props.Apps;
         var selected = Props.Selected;
+        if (_lastSelectionKey != selected?.FullName)
+        {
+            _lastSelectionKey = selected?.FullName;
+            _pendingRevealKey = _lastSelectionKey;
+            _followSelection = selected is not null;
+        }
         var inventory = Props.Inventory;
+        if (_lastFilesOpen != appFilesOpen.Value)
+        {
+            _lastFilesOpen = appFilesOpen.Value;
+            if (selected is not null && _followSelection) _pendingRevealKey = selected.FullName;
+        }
         var busy = Props.Busy;
         var filtering = !string.IsNullOrWhiteSpace(search.Value);
         void Filter(string value)
@@ -37,16 +57,44 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
         }
         UseEffect(() =>
         {
-            appsListOpen.Set(Props.Selected is null);
-            appFilesOpen.Set(Props.Selected is not null && Props.Inventory is not null);
-            expandedAreas.Set(Array.Empty<string>());
+            _clearing = false;
+            if (Props.Selected is not null)
+            {
+                if (search.Value.Length > 0) search.Set("");
+                if (letter.Value != "All") letter.Set("All");
+            }
+            var showList = Props.Selected is null;
+            var showFiles = Props.Selected is not null && Props.Inventory is not null;
+            if (appsListOpen.Value != showList) appsListOpen.Set(showList);
+            if (appFilesOpen.Value != showFiles) appFilesOpen.Set(showFiles);
+            if (expandedAreas.Value.Length > 0) expandedAreas.Set(Array.Empty<string>());
         }, Props.Selected?.FullName);
         UseEffect(() =>
         {
-            if (Props.Selected is not null && Props.Inventory is not null) appFilesOpen.Set(true);
+            if (Props.Selected is not null && Props.Inventory is not null && !appFilesOpen.Value) appFilesOpen.Set(true);
         }, Props.Selected?.FullName, Props.Inventory is not null);
-        void Select(AppTreeNode node) { if (node.App is not null) Props.OnSelect(node.App); }
-        void Unselect() => Props.OnUnselect();
+        void Unselect()
+        {
+            if (_clearing) return;
+            _clearing = true;
+            Props.OnUnselect();
+        }
+        void AttachClearButton(Microsoft.UI.Xaml.Controls.Button control)
+        {
+            if (ClearButtons.TryGetValue(control, out _)) return;
+            ClearButtons.Add(control, new object());
+            control.Click += (_, _) =>
+            {
+                if (_clearing) return;
+                control.IsEnabled = false;
+                var indicator = new Microsoft.UI.Xaml.Controls.StackPanel { Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal, Spacing = 8 };
+                indicator.Children.Add(new Microsoft.UI.Xaml.Controls.ProgressRing { IsActive = true, Width = 18, Height = 18 });
+                indicator.Children.Add(new Microsoft.UI.Xaml.Controls.TextBlock { Text = "Clearing…", VerticalAlignment = VerticalAlignment.Center });
+                control.Content = indicator;
+                BrowserMotion.CardSelectionFeedback(control, true);
+                Unselect();
+            };
+        }
         void Scan()
         {
             _resetScroll = true;
@@ -66,6 +114,7 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
             return first is >= 'A' and <= 'Z' ? first.ToString() : "#";
         }
         var visibleApps = matches.Where(app => filtering || letter.Value == "All" || Initial(app) == letter.Value)
+            .Concat(selected is null ? [] : apps.Where(app => app.FullName == selected.FullName)).DistinctBy(app => app.FullName)
             .OrderBy(app => app.Name, StringComparer.OrdinalIgnoreCase).ToArray();
         var letters = new[] { "All", "#" }.Concat(Enumerable.Range('A', 26).Select(code => ((char)code).ToString())).ToArray();
         var keyboard = ScrollView(VStack(6, letters.Chunk(4).Select((row, index) => HStack(6, row.Select(key =>
@@ -102,13 +151,9 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
         var selectedIndex = Array.FindIndex(visibleApps, app => app.FullName == selected?.FullName);
         var appList = (ListView<InstalledApp>(visibleApps, app => app.FullName, (app, _) => Border(VStack(8,
             FlexRow(
-                CheckBox(app.FullName == selected?.FullName, isChecked =>
-                {
-                    if (busy) return;
-                    if (isChecked && app.FullName != selected?.FullName)
-                        Select(new AppTreeNode(app.FullName, app.Name, app, Array.Empty<AppTreeNode>()));
-                    else if (!isChecked && app.FullName == selected?.FullName) Unselect();
-                }).AutomationName($"Unselect {app.Name}").IsEnabled(!busy)
+                Button(FluentGlyph("\uE73E", 12), Unselect)
+                    .AutomationName($"Unselect {app.Name}").IsEnabled(!busy)
+                    .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Clear selection"))
                     .IsVisible(app.FullName == selected?.FullName)
                     .MinWidth(0).Width(24).Padding(0).Margin(right: 8).Flex(shrink: 0),
                 AppIcon(app).Margin(right: 12).Flex(shrink: 0),
@@ -126,14 +171,51 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
         ).HAlign(HorizontalAlignment.Stretch).Padding(10))
             .WithBorder(app.FullName == selected?.FullName ? Theme.Ref("TextFillColorSecondaryBrush") : Theme.Ref("ControlFillColorTransparentBrush"))
             .CornerRadius(10).HAlign(HorizontalAlignment.Stretch).WithKey(app.FullName)) with { SelectedIndex = selectedIndex })
-            .SelectedIndexChanged(index =>
-            {
-                if (index >= 0 && index < visibleApps.Length && !busy && visibleApps[index].FullName != selected?.FullName)
-                    Select(new AppTreeNode(visibleApps[index].FullName, visibleApps[index].Name, visibleApps[index], Array.Empty<AppTreeNode>()));
-            })
             .AutomationName("Alphabetical application list").IsEnabled(!busy).HAlign(HorizontalAlignment.Stretch)
             .Set(control =>
             {
+                _railList = control;
+                control.IsItemClickEnabled = true;
+                void UserSelect(int index)
+                {
+                    if (index < 0 || index >= visibleApps.Length) return;
+                    var app = visibleApps[index];
+                    if (!_clearing && !Props.Busy && app.FullName != Props.Selected?.FullName) Props.OnSelect(app);
+                }
+                if (!Lists.TryGetValue(control, out var actions))
+                {
+                    actions = new ListActions();
+                    Lists.Add(control, actions);
+                    control.LayoutUpdated += (_, _) => RevealSelectedRow(control);
+                    control.ItemClick += (_, args) =>
+                    {
+                        BrowserMotion.AcknowledgeActivityList();
+                        actions.Select?.Invoke(control.Items.IndexOf(args.ClickedItem));
+                    };
+                    control.KeyDown += (_, args) =>
+                    {
+                        if (args.Key is Windows.System.VirtualKey.Enter or Windows.System.VirtualKey.Space && control.SelectedIndex >= 0)
+                        { actions.Select?.Invoke(control.SelectedIndex); args.Handled = true; }
+                    };
+                }
+                actions.Select = UserSelect;
+                actions.Apps = visibleApps;
+                control.DispatcherQueue.TryEnqueue(() =>
+                    {
+                        var current = Props.Selected;
+                        if (current is null) { control.SelectedIndex = -1; return; }
+                        var index = Array.FindIndex(actions.Apps, app => app.FullName == current.FullName);
+                        if (index >= 0 && index < control.Items.Count)
+                        {
+                            control.SelectedIndex = index;
+                            if (Props.Compact) control.ScrollIntoView(control.Items[index]);
+                            // Measure the expanded files before consuming the pending reveal.
+                            // A direct call here can still see the previous row height.
+                            _railScroll?.UpdateLayout();
+                            control.UpdateLayout();
+                            RevealSelectedRow(control);
+                        }
+                    });
                 control.HorizontalContentAlignment = HorizontalAlignment.Stretch;
                 control.ItemContainerStyle ??= new Style(typeof(Microsoft.UI.Xaml.Controls.ListViewItem))
                 {
@@ -157,7 +239,7 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                 TextBlock($"{apps.Length} apps in your library").Foreground(Theme.SecondaryText),
                 TextBox(search.Value, Filter, placeholderText: "Search your library").AutomationName("Search applications"),
                 ActionButton(busy ? "Working…" : "Refresh applications", Scan).AutomationName("Refresh applications").IsEnabled(!busy),
-                Slot("unselect", selected is not null ? ActionButton("Clear selection", Unselect).IsEnabled(!busy) : Text("")),
+                Slot("unselect", selected is not null ? ActionButton("Clear selection", () => { }).IsEnabled(!busy).Set(AttachClearButton) : Text("")),
                 ScrollView(VStack(14,
                 Disclosure("Open Apps List", keyboard, !filtering && appsListOpen.Value, expanded =>
                     { appsListOpen.Set(expanded); if (expanded) appFilesOpen.Set(false); })
@@ -167,6 +249,28 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                     .AutomationName("Application rail scroll area")
                     .Set(control =>
                     {
+                        if (!ReferenceEquals(_railScroll, control))
+                        {
+                            void FollowSelection()
+                            {
+                                if (!_followSelection || Props.Selected is null) return;
+                                _pendingRevealKey = Props.Selected.FullName;
+                                if (_railList is not null) RevealSelectedRow(_railList);
+                            }
+                            control.ExtentChanged += (_, _) => FollowSelection();
+                            control.ViewChanged += (_, _) => FollowSelection();
+                            control.AddHandler(UIElement.PointerWheelChangedEvent,
+                                new Microsoft.UI.Xaml.Input.PointerEventHandler((_, _) => { _followSelection = false; _pendingRevealKey = null; }), true);
+                            control.AddHandler(UIElement.PointerPressedEvent,
+                                new Microsoft.UI.Xaml.Input.PointerEventHandler((_, _) => { _followSelection = false; _pendingRevealKey = null; }), true);
+                            control.KeyDown += (_, args) =>
+                            {
+                                if (args.Key is Windows.System.VirtualKey.Up or Windows.System.VirtualKey.Down
+                                    or Windows.System.VirtualKey.PageUp or Windows.System.VirtualKey.PageDown
+                                    or Windows.System.VirtualKey.Home or Windows.System.VirtualKey.End)
+                                { _followSelection = false; _pendingRevealKey = null; }
+                            };
+                        }
                         _railScroll = control;
                         if (_resetScroll)
                         {
@@ -195,5 +299,27 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                 .Padding(12).Background(Theme.LayerFill).WithBorder(Theme.CardStroke).CornerRadius(12)
                 .Margin(12).Flex(shrink: 0);
         return navigation;
+    }
+
+    private void RevealSelectedRow(Microsoft.UI.Xaml.Controls.ListView list)
+    {
+        if (_pendingRevealKey is null || Props.Selected?.FullName != _pendingRevealKey || Props.Compact) return;
+        if (!Lists.TryGetValue(list, out var actions) || list.SelectedIndex < 0 || list.SelectedIndex >= actions.Apps.Length
+            || actions.Apps[list.SelectedIndex].FullName != _pendingRevealKey) return;
+        if (_railScroll?.Content is not UIElement content || _railScroll.ViewportHeight <= 0
+            || list.ContainerFromIndex(list.SelectedIndex) is not FrameworkElement row || row.ActualHeight <= 0) return;
+        // The outer ScrollView owns scrolling in the desktop rail; ListView.ScrollIntoView
+        // only updates the ListView's own (disabled) scroller.
+        var position = row.TransformToVisual(content).TransformPoint(new Windows.Foundation.Point(0, 0));
+        if (!double.IsFinite(position.Y)) return;
+        if (position.Y + row.ActualHeight > _railScroll.ExtentHeight + 1) return;
+        if (position.Y > _railScroll.ViewportHeight && _railScroll.ScrollableHeight <= 0) return;
+        _pendingRevealKey = null;
+        var target = Math.Clamp(position.Y - 8, 0, _railScroll.ScrollableHeight);
+        if (Math.Abs(_railScroll.VerticalOffset - target) < 1) return;
+        _railScroll.ScrollTo(0, target,
+            new Microsoft.UI.Xaml.Controls.ScrollingScrollOptions(
+                Microsoft.UI.Xaml.Controls.ScrollingAnimationMode.Disabled,
+                Microsoft.UI.Xaml.Controls.ScrollingSnapPointsMode.Ignore));
     }
 }

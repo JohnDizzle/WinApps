@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-namespace MyApps.Models;
+namespace WinApps.Models;
 
 public sealed record SettingLocation(string Store, IReadOnlyList<string> Containers, string Key);
 public sealed record AppSetting(string Container, string Name, string Type, string Value, SettingLocation? Location = null);

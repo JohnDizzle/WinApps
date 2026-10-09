@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
-using MyApps.Models;
-using MyApps.Services.Packages;
+using WinApps.Models;
+using WinApps.Services.Packages;
 using static Microsoft.UI.Reactor.Factories;
-using static MyApps.Browser.BrowserUi;
+using static WinApps.Browser.BrowserUi;
 
-namespace MyApps.Browser;
+namespace WinApps.Browser;
 
 internal sealed record ApplicationLaunchActionsProps(InstalledApp App, PackageConfiguration? Configuration, Action<InstalledApp>? OnUninstalled = null);
 internal sealed class ApplicationLaunchActions : Component<ApplicationLaunchActionsProps>
@@ -48,6 +48,7 @@ internal sealed class ApplicationLaunchActions : Component<ApplicationLaunchActi
             HStack(8,
                 Button(HStack(6, FluentGlyph("\uE768"), TextBlock("Launch")), () => Launch(false))
                     .AutomationName($"Launch {Props.App.Name}").IsEnabled(!busy.Value && !removed.Value && Props.App.FamilyName.Length > 0).CornerRadius(9).Padding(10),
+                Component<ApplicationTerminateAction, ApplicationTerminateActionProps>(new(Props.App)).WithKey($"terminate-{Props.App.FullName}"),
                 Button(HStack(6, FluentGlyph("\uE74D"), TextBlock("Uninstall")), () => confirmUninstall.Set(true))
                     .AutomationName($"Uninstall {Props.App.Name}").IsEnabled(!busy.Value && !removed.Value)
                     .CornerRadius(9).Padding(10).WithKey("uninstall"),

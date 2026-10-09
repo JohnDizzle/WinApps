@@ -3,16 +3,16 @@ using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
-using MyApps.Models;
-using MyApps.Services.Inventory;
-using MyApps.Services.Storage;
-using MyApps.Services.Settings;
-using MyApps.Services.Packages;
+using WinApps.Models;
+using WinApps.Services.Inventory;
+using WinApps.Services.Storage;
+using WinApps.Services.Settings;
+using WinApps.Services.Packages;
 using static Microsoft.UI.Reactor.Factories;
 
-using static MyApps.Browser.BrowserUi;
+using static WinApps.Browser.BrowserUi;
 
-namespace MyApps.Browser;
+namespace WinApps.Browser;
 
 public sealed record PackageExplorerProps(bool NavigationVisible = true);
 
@@ -20,26 +20,54 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
 {
     private int _selectionVersion;
     private bool _compactLayout;
+    private (string Key, RunningApplication[] Snapshot)? _nextActivitySnapshot;
     private CancellationTokenSource? _inspectionCancellation;
     private CancellationTokenSource? _actionCancellation;
     private sealed record CachedApplication(PackageConfiguration? Configuration, AppDataInventory Inventory,
         AppSettingsSnapshot Settings, FolderFootprint[] Footprint);
     private readonly Dictionary<string, CachedApplication> _applicationCache = new(StringComparer.Ordinal);
+    private sealed record SelectionState(InstalledApp? Selected = null, AppDataInventory? Inventory = null,
+        AppSettingsSnapshot? Settings = null, PackageConfiguration? Configuration = null, AppDataFile? File = null,
+        string Preview = "", string View = "Overview", bool Inspecting = false, bool ActionBusy = false,
+        string Status = "Loading your application library…", FolderFootprint[]? Footprint = null, RunningApplication[]? InitialActivity = null);
+    private static readonly SelectionState InitialSelection = new();
+    // Hook values are render snapshots. Async completion must merge with the current
+    // selection, rather than the snapshot captured before the user's click.
+    private SelectionState _currentSelection = InitialSelection;
+    private sealed class SelectionField<T>(Func<T> read, Action<T> write)
+    {
+        public T Value => read();
+        public void Set(T value) => write(value);
+    }
+    private readonly struct ResumeOnUi(Microsoft.UI.Dispatching.DispatcherQueue dispatcher) : System.Runtime.CompilerServices.INotifyCompletion
+    {
+        public ResumeOnUi GetAwaiter() => this;
+        public bool IsCompleted => dispatcher.HasThreadAccess;
+        public void GetResult() { }
+        public void OnCompleted(Action continuation) => dispatcher.TryEnqueue(() => continuation());
+    }
     public override Element Render()
     {
+        var ui = new ResumeOnUi(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread());
         var apps = UseState(Array.Empty<InstalledApp>());
-        var selected = UseState<InstalledApp?>(null);
-        var footprint = UseState(Array.Empty<FolderFootprint>());
-        var inventory = UseState<AppDataInventory?>(null);
-        var settings = UseState<AppSettingsSnapshot?>(null);
-        var packageConfiguration = UseState<PackageConfiguration?>(null);
-        var file = UseState<AppDataFile?>(null);
-        var preview = UseState("");
-        var view = UseState("Overview");
+        var selection = UseState(InitialSelection);
+        void PublishSelection(SelectionState next)
+        {
+            _currentSelection = next;
+            selection.Set(next);
+        }
+        var selected = new SelectionField<InstalledApp?>(() => _currentSelection.Selected, value => PublishSelection(_currentSelection with { Selected = value }));
+        var footprint = new SelectionField<FolderFootprint[]>(() => _currentSelection.Footprint ?? [], value => PublishSelection(_currentSelection with { Footprint = value }));
+        var inventory = new SelectionField<AppDataInventory?>(() => _currentSelection.Inventory, value => PublishSelection(_currentSelection with { Inventory = value }));
+        var settings = new SelectionField<AppSettingsSnapshot?>(() => _currentSelection.Settings, value => PublishSelection(_currentSelection with { Settings = value }));
+        var packageConfiguration = new SelectionField<PackageConfiguration?>(() => _currentSelection.Configuration, value => PublishSelection(_currentSelection with { Configuration = value }));
+        var file = new SelectionField<AppDataFile?>(() => _currentSelection.File, value => PublishSelection(_currentSelection with { File = value }));
+        var preview = new SelectionField<string>(() => _currentSelection.Preview, value => PublishSelection(_currentSelection with { Preview = value }));
+        var view = new SelectionField<string>(() => _currentSelection.View, value => PublishSelection(_currentSelection with { View = value }));
         var busy = UseState(false);
-        var inspecting = UseState(false);
-        var actionBusy = UseState(false);
-        var status = UseState("Loading your application library…");
+        var inspecting = new SelectionField<bool>(() => _currentSelection.Inspecting, value => PublishSelection(_currentSelection with { Inspecting = value }));
+        var actionBusy = new SelectionField<bool>(() => _currentSelection.ActionBusy, value => PublishSelection(_currentSelection with { ActionBusy = value }));
+        var status = new SelectionField<string>(() => _currentSelection.Status, value => PublishSelection(_currentSelection with { Status = value }));
         var railAttempt = UseState(0);
         var detailAttempt = UseState(0);
         var compact = UseState(false);
@@ -51,19 +79,13 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
             _selectionVersion++;
             _inspectionCancellation?.Cancel();
             _actionCancellation?.Cancel();
-            actionBusy.Set(false);
-            inspecting.Set(false);
-            selected.Set(null); inventory.Set(null); settings.Set(null); file.Set(null);
-            packageConfiguration.Set(null);
-            footprint.Set(Array.Empty<FolderFootprint>());
-            preview.Set(""); view.Set("Overview");
+            PublishSelection(new SelectionState(Status: "Application unselected. Choose an application from the list."));
         }
 
         void Unselect()
         {
             if (busy.Value) return;
             ClearSelection();
-            status.Set("Application unselected. Choose an application from the list.");
         }
 
         async void Uninstalled(InstalledApp app)
@@ -82,6 +104,7 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
         async void Scan()
         {
             if (busy.Value) return;
+            WinApps.Services.Icons.ApplicationIcons.InvalidateDisplayIcons();
             _applicationCache.Clear();
             ClearSelection();
             busy.Set(true);
@@ -122,32 +145,27 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
         async void Select(InstalledApp app)
         {
             if (busy.Value) return;
+            var initialActivity = _nextActivitySnapshot?.Key == app.FullName ? _nextActivitySnapshot.Value.Snapshot : null;
+            _nextActivitySnapshot = null;
             _inspectionCancellation?.Cancel();
             _actionCancellation?.Cancel();
-            actionBusy.Set(false);
             using var cancellation = new CancellationTokenSource();
             _inspectionCancellation = cancellation;
             var token = cancellation.Token;
             var request = ++_selectionVersion;
-            selected.Set(app); inventory.Set(null); settings.Set(null); file.Set(null); preview.Set("");
-            packageConfiguration.Set(null);
-            footprint.Set(Array.Empty<FolderFootprint>()); view.Set("Overview");
             if (_applicationCache.TryGetValue(app.FullName, out var cached))
             {
-                packageConfiguration.Set(cached.Configuration);
-                inventory.Set(cached.Inventory);
-                settings.Set(cached.Settings);
-                footprint.Set(cached.Footprint);
-                inspecting.Set(false);
-                status.Set("Cached application details loaded. Reload resources to refresh.");
+                PublishSelection(new SelectionState(app, cached.Inventory, cached.Settings, cached.Configuration,
+                    Status: "Cached application details loaded. Reload resources to refresh.", Footprint: cached.Footprint, InitialActivity: initialActivity));
                 if (ReferenceEquals(_inspectionCancellation, cancellation)) _inspectionCancellation = null;
                 return;
             }
-            inspecting.Set(true); status.Set($"Loading {app.Name}…");
+            PublishSelection(new SelectionState(app, Inspecting: true, Status: $"Loading {app.Name}…", InitialActivity: initialActivity));
             try
             {
                 // Let selection and loading indicators render before starting inspection.
                 await Task.Yield();
+                await ui;
                 if (token.IsCancellationRequested) return;
                 var configurationTask = Task.Run(() => new PackageConfigurationReader().Read(app));
                 var filesTask = Task.Run(() => new AppDataInspector().Inspect(app, token));
@@ -157,6 +175,7 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
                     try
                     {
                         var result = await filesTask;
+                        await ui;
                         if (!result.Canceled && !token.IsCancellationRequested && request == _selectionVersion) inventory.Set(result);
                     }
                     // The combined inspection below reports errors; this task only publishes files early.
@@ -165,16 +184,21 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
                 var publishFilesTask = PublishFiles();
                 await Task.WhenAll(configurationTask, filesTask, settingsTask);
                 await publishFilesTask;
+                await ui;
                 if (token.IsCancellationRequested || filesTask.Result.Canceled || request != _selectionVersion) return;
-                packageConfiguration.Set(configurationTask.Result);
-                inventory.Set(filesTask.Result);
-                settings.Set(settingsTask.Result);
+                PublishSelection(_currentSelection with { Configuration = configurationTask.Result, Inventory = filesTask.Result,
+                    Settings = settingsTask.Result, Inspecting = false, Status = "Application details loaded." });
                 _applicationCache[app.FullName] = new(configurationTask.Result, filesTask.Result, settingsTask.Result, []);
-                status.Set("Disk inventory loaded. Select a file to preview supported text formats.");
             }
             catch (OperationCanceledException) { }
-            catch (Exception ex) { if (request == _selectionVersion) status.Set($"Inspection failed: {ex.Message}"); }
-            finally { if (ReferenceEquals(_inspectionCancellation, cancellation)) _inspectionCancellation = null; if (request == _selectionVersion) inspecting.Set(false); }
+            catch (Exception ex) { await ui; if (request == _selectionVersion) status.Set($"Inspection failed: {ex.Message}"); }
+            finally { await ui; if (ReferenceEquals(_inspectionCancellation, cancellation)) _inspectionCancellation = null; if (request == _selectionVersion && inspecting.Value) inspecting.Set(false); }
+        }
+
+        void SelectActivity(InstalledApp app, RunningApplication[] snapshot)
+        {
+            _nextActivitySnapshot = (app.FullName, snapshot);
+            Select(app);
         }
 
         async void Measure()
@@ -274,7 +298,7 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
                     .WithKey("rail-boundary").IsVisible(Props.NavigationVisible).Flex(shrink: 0),
                 ErrorBoundary(Component<ApplicationDetailPane, ApplicationDetailPaneProps>(new(selected.Value, footprint.Value,
                     inventory.Value, settings.Value, packageConfiguration.Value, file.Value, preview.Value,
-                    view.Value, busy.Value || inspecting.Value || actionBusy.Value, status.Value, OpenView, Measure, OpenFolder, OpenFile, PreviewFile, inspecting.Value, compact.Value, ReloadApplication, Uninstalled, actionNotice.Value, actionNoticeVersion.Value))
+                    view.Value, busy.Value || inspecting.Value || actionBusy.Value, status.Value, OpenView, Measure, OpenFolder, OpenFile, PreviewFile, inspecting.Value, compact.Value, ReloadApplication, Uninstalled, actionNotice.Value, actionNoticeVersion.Value, apps.Value, Select, Unselect, _currentSelection.InitialActivity, SelectActivity))
                     .WithKey($"application-detail-{detailAttempt.Value}"),
                     error => Component<ErrorRecoveryPanel, ErrorRecoveryPanelProps>(new("Application details unavailable", error,
                         () => detailAttempt.Set(detailAttempt.Value + 1), RecoverList)))

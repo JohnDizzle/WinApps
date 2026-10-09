@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
-using MyApps.Services.Storage;
+using WinApps.Services.Storage;
 using Windows.Graphics;
 
-namespace MyApps.Browser;
+namespace WinApps.Browser;
 
 internal sealed class WindowPlacementController
 {

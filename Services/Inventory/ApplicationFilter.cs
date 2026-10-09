@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-namespace MyApps.Services.Inventory;
+namespace WinApps.Services.Inventory;
 
 public static class ApplicationFilter
 {

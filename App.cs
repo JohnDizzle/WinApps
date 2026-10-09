@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using Microsoft.UI.Reactor;
-using MyApps.Browser;
-using MyApps.Services.Storage;
+using WinApps.Browser;
+using WinApps.Services.Storage;
 
-namespace MyApps.Application;
+namespace WinApps.Application;
 
 internal static class Program
 {

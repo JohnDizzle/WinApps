@@ -3,17 +3,21 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Reactor;
-using MyApps.Browser;
-using MyApps.Models;
+using WinApps.Browser;
+using WinApps.Models;
 using static Microsoft.UI.Reactor.Factories;
 
 namespace MyApps.UiIntegration;
 
 internal static class Program
 {
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern uint SetErrorMode(uint mode);
     [STAThread]
     private static void Main()
     {
+        // Test failures must report through stderr/logs without interrupting the user's desktop.
+        SetErrorMode(0x0002); // SEM_NOGPFAULTERRORBOX
         Directory.CreateDirectory("artifacts");
         File.WriteAllText("artifacts/ui-checks.log", "Starting native UI checks.\n");
         try
@@ -53,7 +57,7 @@ public sealed partial class ChecksApplication : Application
                 checks++;
             }
             var placementPath = Path.GetFullPath(Path.Combine("artifacts", "window-placement-check-" + Guid.NewGuid().ToString("N") + ".json"));
-            var placementStore = new MyApps.Services.Storage.WindowPlacementStore(placementPath);
+            var placementStore = new WinApps.Services.Storage.WindowPlacementStore(placementPath);
             Check(placementStore.Save(new(-500, -500, 100, 100)) is null, "Placement fixture must save successfully.");
             WindowPlacementController.Attach(_window, placementStore);
             WindowPlacementController.Attach(_window, placementStore);
@@ -105,18 +109,136 @@ public sealed partial class ChecksApplication : Application
             }
             var app = new InstalledApp("Fixture", "fixture-family", "fixture-family!App", "Publisher", "1", "", "");
             var railApps = new[] { app };
+            var hiddenWindow = new Window();
+            var hiddenHandle = WinRT.Interop.WindowNative.GetWindowHandle(hiddenWindow);
+            var windowFixture = new WinApps.Services.Inventory.RunningApplication(Environment.ProcessId, DateTime.UtcNow.Ticks,
+                "Fixture", "Fixture window", "fixture.exe", 1024, 1, WindowHandle: hiddenHandle);
+            Check(!WinApps.Services.Inventory.ApplicationWindowSwitcher.HasOpenWindow(windowFixture),
+                "A hidden background window must not remain an open-window activity card.");
+            hiddenWindow.Close();
+            Check(!WinApps.Services.Inventory.ApplicationWindowSwitcher.HasOpenWindow(windowFixture),
+                "A destroyed window must be removed even when its process still runs.");
+            Check(!WinApps.Services.Inventory.ApplicationWindowSwitcher.HasOpenWindow(windowFixture with { WindowHandle = 0 }),
+                "A process without a window must not remain an open-window activity card.");
+            if (Environment.GetEnvironmentVariable("WINAPPS_UI_TEST_FOCUS") == "activity")
+            {
+                var existing = windowFixture with { Id = 101, Started = 1, Name = "Existing app", Memory = 1048576 };
+                var added = windowFixture with { Id = 102, Started = 2, Name = "New app", Memory = 2097152 };
+                var reads = 0;
+                var closed = false;
+                var summary = "";
+                var activityProps = new ApplicationActivityPanelProps(OnSummary: value => summary = value,
+                    ReadWindows: (excluded, token) =>
+                    {
+                        Interlocked.Increment(ref reads);
+                        return excluded is null ? [existing] : !closed && !excluded.Contains(added.Id) ? [added] : [];
+                    }, WindowOpen: item => item.Id != added.Id || !closed);
+                Element Activity() => Component<ApplicationActivityPanel, ApplicationActivityPanelProps>(activityProps).WithKey("activity-test");
+                var activityTree = Activity();
+                UIElement? activityNative = null;
+                void RenderActivity()
+                {
+                    if (activityNative is null) return;
+                    var next = Activity();
+                    activityNative = reconciler.Reconcile(activityTree, next, activityNative, RenderActivity)!;
+                    activityTree = next;
+                    _window.Content = activityNative;
+                }
+                activityNative = reconciler.Mount(activityTree, RenderActivity)!;
+                _window.Content = activityNative;
+                await new UiDelay(2600);
+                var cards = Descendants(activityNative).OfType<Border>().Where(border =>
+                    Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(border).Contains("MiB RAM, PID")).ToArray();
+                Check(cards.Length == 2 && Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(cards[0]).StartsWith("New app,"),
+                    $"A newly detected window must be inserted before existing cards. Cards={cards.Length}; reads={reads}; summary={summary}; names={string.Join(" | ", cards.Select(card => Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(card)))}");
+                Check(summary.Contains("2 windowed apps") && summary.Contains("3 MiB RAM snapshots"),
+                    "A new card's initial RAM snapshot must be included in the total.");
+                Check(cards[0].BorderThickness.Left == 2 && Descendants(activityNative).OfType<TextBlock>().Any(text => text.Text == "NEW · SNAPSHOT"),
+                    $"New cards must show their highlighted border and new-snapshot label. Thickness={cards[0].BorderThickness.Left}; brush={cards[0].BorderBrush?.GetType().Name}; labels={string.Join(" | ", Descendants(activityNative).OfType<TextBlock>().Where(text => text.Text.Contains("SNAPSHOT")).Select(text => text.Text))}");
+                var beforeAnimation = (cards[0].BorderBrush as Microsoft.UI.Xaml.Media.LinearGradientBrush)?.GradientStops[0].Color;
+                await new UiDelay(220);
+                if (new Windows.UI.ViewManagement.UISettings().AnimationsEnabled && beforeAnimation is not null)
+                    Check((cards[0].BorderBrush as Microsoft.UI.Xaml.Media.LinearGradientBrush)?.GradientStops[0].Color != beforeAnimation,
+                        "The rainbow border must animate without rebuilding the page.");
+                BrowserMotion.AcknowledgeActivityList();
+                await new UiDelay(50);
+                Check(!Descendants(activityNative).OfType<TextBlock>().Any(text => text.Text == "NEW · SNAPSHOT"),
+                    "Interacting with the application list must acknowledge new cards.");
+                closed = true;
+                await new UiDelay(2300);
+                Check(summary.Contains("1 windowed apps") && !Descendants(activityNative).OfType<TextBlock>().Any(text => text.Text == "New app"),
+                    "Closing the new window must remove its card and RAM snapshot from the total.");
+                _window.Content = reconciler.Reconcile(activityTree, TextBlock("Left homepage"), activityNative, () => { });
+                var readsAfterLeave = reads;
+                await new UiDelay(2200);
+                Check(reads == readsAfterLeave, "Leaving the homepage must stop window discovery.");
+                Console.WriteLine("Passed new-window discovery, RAM totals, rainbow acknowledgement, closing, and cleanup checks.");
+                Environment.ExitCode = 0;
+                return;
+            }
+            using (var canceledStats = new CancellationTokenSource())
+            {
+                canceledStats.Cancel();
+                Check(WinApps.Services.Inventory.RunningApplications.Read(app, false, canceledStats.Token).Length == 0,
+                    "Canceling live statistics must return quietly without throwing.");
+            }
+            var statRenders = 0;
+            var initialUsage = windowFixture with { Memory = 2097152, Threads = 3 };
+            var statTree = Component<ApplicationResourceCard, ApplicationResourceCardProps>(new(app, [initialUsage]));
+            var statNative = reconciler.Mount(statTree, () => statRenders++)!;
+            Check(Descendants(statNative).OfType<TextBlock>().Any(text => text.Text == "2.0 MiB"),
+                "The overview must display its carried RAM snapshot immediately, before its first live read.");
+            await new UiDelay(5200);
+            Check(statRenders == 0, "Live statistics must update native labels without requesting page reconciliation.");
+            var overviewTree = Component<ApplicationOverviewCards, ApplicationOverviewCardsProps>(
+                new(app, null, false, false, _ => { }, _ => { }));
+            var overviewNative = reconciler.Mount(overviewTree, () => { })!;
+            var originalDetails = Descendants(overviewNative).OfType<TextBox>().ToArray();
+            foreach (var section in new[] { "Files", "Package", "Application", "Files" })
+            {
+                var button = Descendants(overviewNative).OfType<Button>().Single(control =>
+                    Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(control) == $"Show {section} details");
+                var peer = new Microsoft.UI.Xaml.Automation.Peers.ButtonAutomationPeer(button);
+                ((Microsoft.UI.Xaml.Automation.Provider.IInvokeProvider)peer.GetPattern(
+                    Microsoft.UI.Xaml.Automation.Peers.PatternInterface.Invoke)).Invoke();
+                await new UiDelay(50);
+                Check(Microsoft.UI.Xaml.Automation.AutomationProperties.GetItemStatus(button) == "Selected",
+                    "Overview cards must update selection promptly through native controls.");
+                Check(originalDetails.SequenceEqual(Descendants(overviewNative).OfType<TextBox>()),
+                    "Switching overview cards must retain all existing detail controls.");
+                Check(button.BorderThickness.Left == 2 && button.RenderTransform is Microsoft.UI.Xaml.Media.ScaleTransform scale && Math.Abs(scale.ScaleX - 0.98) < 0.0001,
+                    $"Selected cards must show an immediate inset border and scale. Border={button.BorderThickness.Left}; transform={button.RenderTransform?.GetType().Name}; scale={(button.RenderTransform as Microsoft.UI.Xaml.Media.ScaleTransform)?.ScaleX}");
+            }
+            Console.WriteLine("Passed native overview card selection and retained-control checks.");
+            if (Environment.GetEnvironmentVariable("WINAPPS_UI_TEST_FOCUS") == "overview")
+            {
+                Environment.ExitCode = 0;
+                return;
+            }
+            var backActions = 0;
             var loadingDetails = Component<ApplicationDetailPane, ApplicationDetailPaneProps>(new(app, [], null, null, null,
-                null, "", "Overview", true, "Loading", _ => { }, () => { }, _ => { }, _ => { }, _ => { }, true));
+                null, "", "Overview", true, "Loading", _ => { }, () => { }, _ => { }, _ => { }, _ => { }, true,
+                OnClearSelection: () => backActions++));
             var loadingNative = reconciler.Mount(loadingDetails, () => { })!;
             Check(Descendants(loadingNative).OfType<ProgressRing>().Single(ring => ring.IsActive).IsActive,
                 "App inspection must show an active loading indicator in the detail pane.");
+            var backButton = Descendants(loadingNative).OfType<Button>().Single(button =>
+                Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(button) == "Back to applications");
+            ((Microsoft.UI.Xaml.Automation.Provider.IInvokeProvider)new Microsoft.UI.Xaml.Automation.Peers.ButtonAutomationPeer(backButton)
+                .GetPattern(Microsoft.UI.Xaml.Automation.Peers.PatternInterface.Invoke)).Invoke();
+            Check(!backButton.IsEnabled && backButton.Content is ProgressRing { IsActive: true },
+                "Pressing Back must immediately show progress and prevent repeated navigation.");
+            await new UiDelay(50);
+            Check(backActions == 1, "The app header back button must clear selection even while inspection is loading.");
             Check(Descendants(loadingNative).OfType<Button>()
                 .Where(button => new[] { "View Overview", "View Package", "View Storage", "View Settings", "View Registry", "View LocalState" }.Contains(Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(button)))
                 .All(button => button.IsEnabled),
                 "Section tabs must remain interactive while app inspection runs.");
             var railInventory = new AppDataInventory([], []);
-            Element Rail() => Component<ApplicationRail, ApplicationRailProps>(new(railApps, app, railInventory,
-                "Package", false, _ => { }, () => { }, () => { }, _ => { }, _ => { }, _ => { })).WithKey("rail");
+            InstalledApp? railSelection = app;
+            var unexpectedClears = 0;
+            Element Rail() => Component<ApplicationRail, ApplicationRailProps>(new(railApps, railSelection, railInventory,
+                "Package", false, _ => { }, () => unexpectedClears++, () => { }, _ => { }, _ => { }, _ => { })).WithKey("rail");
             var railTree = Rail();
             var railNative = reconciler.Mount(railTree, () => { })!;
             var railList = Descendants(railNative).OfType<ListView>().Single();
@@ -130,6 +252,152 @@ public sealed partial class ChecksApplication : Application
                     $"Unrelated {mode} rendering must retain the rail's keyed item.");
                 railTree = nextRail;
             }
+            foreach (var nextSelection in new InstalledApp?[] { null, app, null, app })
+            {
+                railSelection = nextSelection;
+                var nextRail = Rail();
+                railNative = reconciler.Reconcile(railTree, nextRail, railNative, () => { })!;
+                railTree = nextRail;
+                await new UiDelay(50);
+                Check(railSelection is not null && railList.SelectedIndex == Array.FindIndex(railApps, item => item.FullName == railSelection.FullName)
+                    || railSelection is null && railList.SelectedIndex == -1,
+                    $"The rail must follow the selected app by identity. Item type: {railList.Items[0]?.GetType().FullName}; selected: {railList.SelectedItem}");
+                Check(unexpectedClears == 0, "Programmatic selection changes must not fire a clear-selection action.");
+            }
+            if (Environment.GetEnvironmentVariable("WINAPPS_UI_TEST_FOCUS") == "rail")
+            {
+                Console.WriteLine("Passed selection persistence and rail reconciliation checks.");
+                Environment.ExitCode = 0;
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("WINAPPS_UI_TEST_FOCUS") == "rail-scroll")
+            {
+                var manyApps = Enumerable.Range(0, 60).Select(index => app with { Name = $"Fixture {index:D2}", FullName = $"fixture-{index}" }).ToArray();
+                InstalledApp? chosen = null;
+                AppDataInventory? scrollInventory = null;
+                Element ScrollingRail() => Component<ApplicationRail, ApplicationRailProps>(new(manyApps, chosen, scrollInventory,
+                    "Overview", false, _ => { }, () => { }, () => { }, _ => { }, _ => { }, _ => { })).WithKey("scrolling-rail");
+                var scrollTree = ScrollingRail();
+                var scrollNative = reconciler.Mount(scrollTree, () => { })!;
+                _window.Content = scrollNative;
+                await new UiDelay(200);
+                chosen = manyApps[58];
+                var nextScrollTree = ScrollingRail();
+                scrollNative = reconciler.Reconcile(scrollTree, nextScrollTree, scrollNative, () => { })!;
+                await new UiDelay(500);
+                var nativeList = Descendants(scrollNative).OfType<ListView>().Single();
+                var outerScroll = Descendants(scrollNative).OfType<ScrollView>().Single(control =>
+                    Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(control) == "Application rail scroll area");
+                Check(nativeList.SelectedIndex == 58, "Homepage selection must highlight the app by key.");
+                Check(outerScroll.VerticalOffset > 0, "Selection near the end must scroll the outer rail, not just its disabled inner scroller.");
+                var selectedRow = (FrameworkElement)nativeList.ContainerFromIndex(58);
+                var rowPosition = selectedRow.TransformToVisual(outerScroll).TransformPoint(new Windows.Foundation.Point(0, 0));
+                Check(rowPosition.Y >= -1 && rowPosition.Y < outerScroll.ViewportHeight,
+                    $"The selected row must be visible in the rail. Y={rowPosition.Y}; viewport={outerScroll.ViewportHeight}");
+                scrollInventory = new AppDataInventory([], []);
+                var expandedTree = ScrollingRail();
+                scrollNative = reconciler.Reconcile(nextScrollTree, expandedTree, scrollNative, () => { })!;
+                await new UiDelay(500);
+                // Later inspection updates must not send a bring-into-view request
+                // that positions the bottom of the expanded row above its app name.
+                for (var update = 0; update < 3; update++)
+                {
+                    var refreshTree = ScrollingRail();
+                    scrollNative = reconciler.Reconcile(expandedTree, refreshTree, scrollNative, () => { })!;
+                    expandedTree = refreshTree;
+                    await new UiDelay(100);
+                }
+                rowPosition = selectedRow.TransformToVisual(outerScroll).TransformPoint(new Windows.Foundation.Point(0, 0));
+                Check(rowPosition.Y >= -1 && rowPosition.Y + Math.Min(selectedRow.ActualHeight, 300) <= outerScroll.ViewportHeight + 1,
+                    $"The app name and files must remain visible after expansion and later updates. Y={rowPosition.Y}; height={selectedRow.ActualHeight}; viewport={outerScroll.ViewportHeight}");
+                var anchoredOffset = outerScroll.VerticalOffset;
+                outerScroll.ScrollTo(0, Math.Max(0, anchoredOffset - 120), new ScrollingScrollOptions(
+                    ScrollingAnimationMode.Disabled, ScrollingSnapPointsMode.Ignore));
+                await new UiDelay(300);
+                Check(Math.Abs(outerScroll.VerticalOffset - anchoredOffset) < 1,
+                    "An automatic offset change during selection must not displace the selected app and its files.");
+                Console.WriteLine("Passed selected-row highlight and outer rail scrolling checks.");
+                Environment.ExitCode = 0;
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("WINAPPS_UI_TEST_FOCUS") == "navigation")
+            {
+                SynchronizationContext.SetSynchronizationContext(new TestDispatcherContext(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread()));
+                var explorerTree = Component<PackageExplorer, PackageExplorerProps>(new());
+                UIElement? explorerNative = null;
+                void UpdateExplorer()
+                {
+                    if (explorerNative is not null)
+                        explorerNative = reconciler.Reconcile(explorerTree, explorerTree, explorerNative, UpdateExplorer)!;
+                }
+                explorerNative = reconciler.Mount(explorerTree, UpdateExplorer)!;
+                for (var attempt = 0; attempt < 100 && !Descendants(explorerNative).OfType<ListView>().Any(list => list.Items.Count > 0 && list.IsEnabled); attempt++)
+                    await new UiDelay(100);
+                var explorerList = Descendants(explorerNative).OfType<ListView>().Single(list => list.Items.Count > 0);
+                // Invoke the same user-selection delegate that native item clicks call.
+                var listTable = typeof(ApplicationRail).GetField("Lists", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!.GetValue(null)!;
+                object?[] lookup = [explorerList, null];
+                Check((bool)listTable.GetType().GetMethod("TryGetValue")!.Invoke(listTable, lookup)!, "The rail must attach native user-selection actions.");
+                var listActions = lookup[1]!;
+                InstalledApp[] ListedApps() => (InstalledApp[])listActions.GetType().GetField("Apps")!.GetValue(listActions)!;
+                void SelectRow(int index) => ((Action<int>)listActions.GetType().GetField("Select")!.GetValue(listActions)!)(index);
+                var target = ListedApps()[0];
+                SelectRow(0);
+                await new UiDelay(50);
+                Check(explorerList.SelectedIndex >= 0 && ListedApps()[explorerList.SelectedIndex].FullName == target.FullName,
+                    "The first selection must immediately synchronize the rail by app identity.");
+                await new UiDelay(3000);
+                Check(explorerList.SelectedIndex >= 0 && ListedApps()[explorerList.SelectedIndex].FullName == target.FullName,
+                    "Asynchronous inspection completion must retain the first selection.");
+                Check(!Descendants(explorerNative).OfType<TextBlock>().Any(text => text.Text == "On your PC now"),
+                    "Inspection completion must not bounce back to the homepage.");
+                var nextApp = ListedApps().First(item => item.FullName != target.FullName);
+                SelectRow(Array.FindIndex(ListedApps(), item => item.FullName == nextApp.FullName));
+                await new UiDelay(50);
+                Check(ListedApps()[explorerList.SelectedIndex].FullName == nextApp.FullName, "Switching apps must publish the new selection immediately.");
+                await new UiDelay(3000);
+                Check(ListedApps()[explorerList.SelectedIndex].FullName == nextApp.FullName, "An older completion must not restore the previous app.");
+                void ClearExplorer()
+                {
+                    var clear = Descendants(explorerNative).OfType<Button>().Single(button =>
+                        Descendants(button).OfType<TextBlock>().Any(text => text.Text == "Clear selection"));
+                    ((Microsoft.UI.Xaml.Automation.Provider.IInvokeProvider)new Microsoft.UI.Xaml.Automation.Peers.ButtonAutomationPeer(clear)
+                        .GetPattern(Microsoft.UI.Xaml.Automation.Peers.PatternInterface.Invoke)).Invoke();
+                }
+                ClearExplorer();
+                await new UiDelay(100);
+                Check(explorerList.SelectedIndex == -1 && Descendants(explorerNative).OfType<TextBlock>().Any(text => text.Text == "Startup apps · at sign-in"),
+                    "Clearing must immediately show the homepage and remove the rail highlight, before its activity snapshot finishes.");
+                for (var attempt = 0; attempt < 50 && !Descendants(explorerNative).OfType<Button>().Any(button =>
+                    Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(button).EndsWith("overview in WinApps")); attempt++)
+                    await new UiDelay(100);
+                var homepageOpen = Descendants(explorerNative).OfType<Button>().FirstOrDefault(button =>
+                    Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(button).EndsWith("overview in WinApps"));
+                if (homepageOpen is null)
+                {
+                    // Some test hosts cannot enumerate another process's window. Supply
+                    // one deterministic activity card, wired to the explorer's real selector.
+                    var activityFixture = Component<ApplicationActivityPanel, ApplicationActivityPanelProps>(new(Apps: [target],
+                        OnSelect: chosen => SelectRow(Array.FindIndex(ListedApps(), item => item.FullName == chosen.FullName)),
+                        Snapshot: [new WinApps.Services.Inventory.RunningApplication(1, DateTime.UtcNow.Ticks, target.Name, "Fixture window",
+                            Path.Combine(target.InstallPath, "fixture.exe"), 1048576, 1)]));
+                    var activityNative = reconciler.Mount(activityFixture, () => { })!;
+                    homepageOpen = Descendants(activityNative).OfType<Button>().Single(button =>
+                        Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(button).EndsWith("overview in WinApps"));
+                }
+                ((Microsoft.UI.Xaml.Automation.Provider.IInvokeProvider)new Microsoft.UI.Xaml.Automation.Peers.ButtonAutomationPeer(homepageOpen!)
+                    .GetPattern(Microsoft.UI.Xaml.Automation.Peers.PatternInterface.Invoke)).Invoke();
+                await new UiDelay(100);
+                Check(explorerList.SelectedIndex >= 0, "A single homepage action must select its app in the rail.");
+                var homepageKey = ListedApps()[explorerList.SelectedIndex].FullName;
+                await new UiDelay(3000);
+                Check(explorerList.SelectedIndex >= 0 && ListedApps()[explorerList.SelectedIndex].FullName == homepageKey
+                    && !Descendants(explorerNative).OfType<TextBlock>().Any(text => text.Text == "On your PC now"),
+                    "A homepage selection must survive its asynchronous completion without a second click.");
+                Console.WriteLine("Passed first-click selection, async completion, and app-switch navigation checks.");
+                Environment.ExitCode = 0;
+                return;
+            }
             var resourceJson = System.Text.Json.JsonSerializer.Serialize(UiResources.Current);
             var resourceCopy = UiResources.Parse(resourceJson);
             Check(resourceCopy.Sections.ContainsKey("Windows package registration") && resourceCopy.Controls.Count == 3,
@@ -142,7 +410,7 @@ public sealed partial class ChecksApplication : Application
             {
                 using (var paint = System.Drawing.Graphics.FromImage(paddedIcon))
                     paint.FillRectangle(System.Drawing.Brushes.Blue, 55, 65, 40, 20);
-                using var normalizedIcon = MyApps.Services.Icons.ApplicationIcons.NormalizePackageIcon(paddedIcon);
+                using var normalizedIcon = WinApps.Services.Icons.ApplicationIcons.NormalizePackageIcon(paddedIcon);
                 Check(normalizedIcon.Width == 64 && normalizedIcon.Height == 64,
                     "Normalized package icons must retain a consistent canvas.");
                 Check(normalizedIcon.GetPixel(5, 32).A > 200 && normalizedIcon.GetPixel(32, 5).A == 0,
@@ -151,7 +419,7 @@ public sealed partial class ChecksApplication : Application
                     "Normalized artwork must retain an outer margin.");
             }
             using (var emptyIcon = new System.Drawing.Bitmap(32, 32))
-            using (var normalizedEmpty = MyApps.Services.Icons.ApplicationIcons.NormalizePackageIcon(emptyIcon))
+            using (var normalizedEmpty = WinApps.Services.Icons.ApplicationIcons.NormalizePackageIcon(emptyIcon))
                 Check(normalizedEmpty.GetPixel(32, 32).A == 0,
                     "Empty icons must remain transparent without invalid cropping.");
             Console.WriteLine("Passed package icon normalization checks.");
@@ -194,7 +462,7 @@ public sealed partial class ChecksApplication : Application
                 var actionNative = reconciler.Mount(actionTree, () => { })!;
                 Check(uninstallCallbacks == 0 && !Descendants(actionNative).OfType<Button>().Any(button => button.Content as string == "Confirm uninstall"),
                     "Mounting actions must neither uninstall an app nor show inline confirmation controls.");
-                var desktopResult = new MyApps.Services.Packages.ApplicationUninstaller().UninstallAsync(app with { FamilyName = "" }).GetAwaiter().GetResult();
+                var desktopResult = new WinApps.Services.Packages.ApplicationUninstaller().UninstallAsync(app with { FamilyName = "" }).GetAwaiter().GetResult();
                 Check(!desktopResult.Removed, "A desktop shortcut must not report package removal success.");
                 Console.WriteLine("Passed focused stacked notification and uninstall checks.");
                 Environment.ExitCode = 0;
@@ -273,7 +541,7 @@ public sealed partial class ChecksApplication : Application
                 "Uninstall must be available beside Launch.");
             Check(!Descendants(native).OfType<Button>().Any(button => button.Content as string == "Confirm uninstall"),
                 "Uninstall confirmation must use a modal dialog rather than inline controls.");
-            Check(new MyApps.Services.Packages.ApplicationUninstaller().UninstallAsync(app with { FamilyName = "" })
+            Check(new WinApps.Services.Packages.ApplicationUninstaller().UninstallAsync(app with { FamilyName = "" })
                 .GetAwaiter().GetResult().Message.Contains("Windows Installed apps"),
                 "Desktop shortcuts must never be sent to package removal.");
 
@@ -447,4 +715,10 @@ public sealed partial class ChecksApplication : Application
 internal sealed class ThrowingView : Component
 {
     public override Element Render() => throw new InvalidOperationException("Synthetic render failure.");
+}
+
+internal sealed class TestDispatcherContext(Microsoft.UI.Dispatching.DispatcherQueue dispatcher) : SynchronizationContext
+{
+    public override void Post(SendOrPostCallback callback, object? state) => dispatcher.TryEnqueue(() => callback(state));
+    public override SynchronizationContext CreateCopy() => new TestDispatcherContext(dispatcher);
 }

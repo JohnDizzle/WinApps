@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using Microsoft.Win32;
-using MyApps.Models;
+using WinApps.Models;
 
-namespace MyApps.Services.Inventory;
+namespace WinApps.Services.Inventory;
 
 public sealed class DesktopAppCatalog
 {
@@ -45,7 +45,7 @@ public sealed class DesktopAppCatalog
                         var identity = $"{hive}\\{UninstallPath}\\{keyName}";
                         var dedupe = $"{identity}|{name}|{version}|{location}";
                         apps.TryAdd(dedupe, new InstalledApp(name, "", $"{identity} ({view})", publisher,
-                            version, "", location, $"Desktop · {hive} · {view}", estimated, MyApps.Services.Icons.ApplicationIcons.DesktopIcon(key.GetValue("DisplayIcon") as string)));
+                            version, "", location, $"Desktop · {hive} · {view}", estimated, WinApps.Services.Icons.ApplicationIcons.DesktopIcon(key.GetValue("DisplayIcon") as string)));
                     }
                     catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
                     { skipped++; }
@@ -89,7 +89,7 @@ public sealed class AppInventory
         var desktop = new PackageScan(merged, registered.Skipped + shortcuts.Skipped);
         try
         {
-            var packaged = new MyApps.Services.Packages.PackageCatalog().Scan();
+            var packaged = new WinApps.Services.Packages.PackageCatalog().Scan();
             return new(desktop.Apps.Concat(packaged.Apps).OrderBy(app => app.Name, StringComparer.OrdinalIgnoreCase).ToArray(),
                 desktop.Skipped + packaged.Skipped);
         }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
-using MyApps.Models;
+using WinApps.Models;
 
-namespace MyApps.Browser;
+namespace WinApps.Browser;
 
 public sealed record AppTreeNode(string Key, string Label, InstalledApp? App, IReadOnlyList<AppTreeNode> Children, AppDataFile? File = null, string? Area = null);
 

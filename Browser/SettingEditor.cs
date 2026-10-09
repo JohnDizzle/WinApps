@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
-using MyApps.Models;
-using MyApps.Services.Settings;
+using WinApps.Models;
+using WinApps.Services.Settings;
 using static Microsoft.UI.Reactor.Factories;
-using static MyApps.Browser.BrowserUi;
+using static WinApps.Browser.BrowserUi;
 
-namespace MyApps.Browser;
+namespace WinApps.Browser;
 
 internal sealed record SettingEditorProps(string FamilyName, AppSetting Setting, object ResetToken, bool Disabled);
 

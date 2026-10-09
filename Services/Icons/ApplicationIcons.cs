@@ -7,11 +7,15 @@ using System.Text;
 using Windows.ApplicationModel.Core;
 using Windows.Foundation;
 
-namespace MyApps.Services.Icons;
+namespace WinApps.Services.Icons;
 
 public static class ApplicationIcons
 {
-    public static string NormalizeCachedPackageIcon(string iconUri)
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> DisplayIcons = new(StringComparer.Ordinal);
+    public static void InvalidateDisplayIcons() => DisplayIcons.Clear();
+    public static string NormalizeCachedPackageIcon(string iconUri) => DisplayIcons.GetOrAdd(iconUri, NormalizeCachedPackageIconCore);
+
+    private static string NormalizeCachedPackageIconCore(string iconUri)
     {
         try
         {
@@ -31,7 +35,7 @@ public static class ApplicationIcons
 
     private static string CachePath(string key)
     {
-        var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyApps", "IconCache");
+        var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WinApps", "IconCache");
         Directory.CreateDirectory(folder);
         return Path.Combine(folder, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key))) + ".png");
     }

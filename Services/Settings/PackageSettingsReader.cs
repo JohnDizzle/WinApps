@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using Windows.Management.Core;
 using Windows.Storage;
-using MyApps.Models;
+using WinApps.Models;
 
-namespace MyApps.Services.Settings;
+namespace WinApps.Services.Settings;
 
 public sealed class PackageSettingsReader
 {

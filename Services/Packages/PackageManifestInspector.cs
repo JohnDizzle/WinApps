@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using System.Xml;
 using System.Xml.Linq;
-using MyApps.Models;
+using WinApps.Models;
 
-namespace MyApps.Services.Packages;
+namespace WinApps.Services.Packages;
 
 public sealed class PackageManifestInspector
 {

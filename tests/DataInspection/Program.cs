@@ -2,12 +2,12 @@
 using System.Text;
 using System.Text.Json;
 using System.Xml.Linq;
-using MyApps.Models;
-using MyApps.Services.Storage;
-using MyApps.Services.Inventory;
-using MyApps.Services.Packages;
+using WinApps.Models;
+using WinApps.Services.Storage;
+using WinApps.Services.Inventory;
+using WinApps.Services.Packages;
 using System.Xml;
-using MyApps.Services.Settings;
+using WinApps.Services.Settings;
 
 var root = Path.Combine(Path.GetTempPath(), "MyApps-inspection-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(root);
@@ -34,6 +34,27 @@ string Preview(string name, string content, Encoding? encoding = null)
 
 try
 {
+    var parentApp = new InstalledApp("Suite", "", "suite", "", "", "", @"C:\Apps\Suite");
+    var childApp = parentApp with { Name = "Editor", FullName = "editor", InstallPath = @"C:\Apps\Suite\Editor" };
+    Check(RunningApplicationMatch.Find(@"C:\Apps\Suite\Editor\editor.exe", "Process", [parentApp, childApp]) == childApp,
+        "Running app matching must prefer the most specific installed folder.");
+    Check(RunningApplicationMatch.Find(@"C:\Apps\SuiteOther\other.exe", "Process", [parentApp]) is null,
+        "Matching must respect directory boundaries.");
+    Check(RunningApplicationMatch.Find("", "Editor", [childApp]) == childApp,
+        "A unique exact display name can match when executable access is unavailable.");
+    Check(RunningApplicationMatch.Find(@"C:\Apps\Suite\Editor\editor.exe", "Process", [childApp, childApp with { FullName = "duplicate" }]) is null,
+        "Ambiguous registrations must not open an arbitrary application.");
+    var cpuSampler = new ProcessCpuSampler();
+    Check(cpuSampler.Sample([(42, 100, 0)], TimeSpan.Zero, 4)[0] is null,
+        "CPU must wait for a second sample instead of reporting zero.");
+    Check(cpuSampler.Sample([(42, 100, TimeSpan.TicksPerSecond)], TimeSpan.FromSeconds(2), 4)[0] == 12.5,
+        "CPU must normalize elapsed processor time by wall time and logical processor count.");
+    Check(cpuSampler.Sample([(42, 200, TimeSpan.TicksPerSecond * 10)], TimeSpan.FromSeconds(4), 4)[0] is null,
+        "Recycled PIDs must establish a new CPU baseline.");
+    Check(cpuSampler.Sample([], TimeSpan.FromSeconds(6), 4).Length == 0,
+        "No processes must produce an empty sample.");
+    Check(cpuSampler.Sample([(42, 200, TimeSpan.TicksPerSecond * 11)], TimeSpan.FromSeconds(8), 4)[0] is null,
+        "A process absent from the previous sample must establish a new baseline.");
     var notifications = new NotificationQueue();
     var noticeTime = DateTimeOffset.UtcNow;
     notifications.Add("First application finished", noticeTime);

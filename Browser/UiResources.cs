@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using System.Text.Json;
 
-namespace MyApps.Browser;
+namespace WinApps.Browser;
 
 internal sealed record GuideResource(string Explanation, string Topic, string Url);
 internal sealed record LinkResource(string Label, string Url);

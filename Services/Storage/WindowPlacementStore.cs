@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using System.Text.Json;
 
-namespace MyApps.Services.Storage;
+namespace WinApps.Services.Storage;
 
 public sealed record WindowPlacement(int X, int Y, int Width, int Height, bool Maximized = false);
 
@@ -12,7 +12,7 @@ public sealed class WindowPlacementStore(string? path = null)
     public const int DefaultWidth = 1440;
     public const int DefaultHeight = 960;
     private readonly string _path = path ?? Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyApps", "window.json");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WinApps", "window.json");
 
     public WindowPlacement? Load()
     {

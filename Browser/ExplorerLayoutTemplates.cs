@@ -3,7 +3,7 @@ using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using static Microsoft.UI.Reactor.Factories;
 
-namespace MyApps.Browser;
+namespace WinApps.Browser;
 
 // Both templates retain the same keyed child components. Resizing changes
 // arrangement rather than recreating the application selection or file tree.

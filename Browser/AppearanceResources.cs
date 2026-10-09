@@ -2,7 +2,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Markup;
 
-namespace MyApps.Browser;
+namespace WinApps.Browser;
 
 internal static class AppearanceResources
 {

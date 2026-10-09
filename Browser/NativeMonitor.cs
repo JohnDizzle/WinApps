@@ -2,7 +2,7 @@
 using System.Runtime.InteropServices;
 using Windows.Graphics;
 
-namespace MyApps.Browser;
+namespace WinApps.Browser;
 
 internal static class NativeMonitor
 {

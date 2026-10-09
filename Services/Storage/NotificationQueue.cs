@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-namespace MyApps.Services.Storage;
+namespace WinApps.Services.Storage;
 
 public sealed record NotificationEntry(long Id, string Message, DateTimeOffset ExpiresAt);
 

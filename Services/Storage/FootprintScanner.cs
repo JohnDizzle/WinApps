@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
-using MyApps.Models;
+using WinApps.Models;
 
-namespace MyApps.Services.Storage;
+namespace WinApps.Services.Storage;
 
 public sealed class FootprintScanner
 {
