@@ -234,7 +234,7 @@ internal sealed class ApplicationActivityPanel : Component<ApplicationActivityPa
                 .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, $"Switch to {item.Name}"))
                 .IsVisible(item.WindowHandle != 0)),
             terminate ? Disclosure("Executable location", ReadOnlyText(item.Path.Length > 0 ? item.Path : "Access unavailable", "Executable location")) : Text("").IsVisible(false),
-            ActionButton("Terminate process", () => pending.Set(item)).IsVisible(terminate)
+            ActionButton("Close application", () => pending.Set(item)).IsVisible(terminate)
                 .IsEnabled(item.Id != Environment.ProcessId && item.Path.Length > 0)
         ).Padding(14)).Width(304)
             .WithBorder(Theme.Ref("ControlStrokeColorDefaultBrush"), _newApps.Contains((item.Id, item.Started)) ? 2 : 1)
@@ -292,8 +292,8 @@ internal sealed class ApplicationActivityPanel : Component<ApplicationActivityPa
             Text(!loading.Value && items.Length == 0 ? "No accessible running applications found." : "").IsVisible(!loading.Value && items.Length == 0),
             Props.App is null ? Component<StartupApplicationsPanel>().WithKey("startup-apps") : Text("").IsVisible(false),
             Text(message.Value).IsVisible(message.Value.Length > 0),
-            (ContentDialog($"Terminate {pending.Value?.Name}?",
-                Text($"Force-stop PID {pending.Value?.Id}. Unsaved work may be lost. Other processes belonging to the app will continue running."), "Terminate") with
+            (ContentDialog($"Close {pending.Value?.Name}?",
+                Text($"Request closing the selected window for PID {pending.Value?.Id}. The application can prompt to save work."), "Close application") with
             {
                 IsOpen = pending.Value is not null,
                 CloseButtonText = "Cancel",
@@ -303,7 +303,7 @@ internal sealed class ApplicationActivityPanel : Component<ApplicationActivityPa
                     var target = pending.Value;
                     pending.Set(null);
                     if (result == Microsoft.UI.Xaml.Controls.ContentDialogResult.Primary && target is not null)
-                        message.Set(RunningApplications.Terminate(target));
+                        message.Set(RunningApplications.RequestClose(target));
                 }
             }).WithKey("terminate-confirmation"));
     }

@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../Services/Inventory/AdministrativeTools.cs" Link="Services/AdministrativeTools.cs" />
+    <Compile Include="../../Services/Inventory/DesktopAppMerge.cs" Link="Services/DesktopAppMerge.cs" />
     <Compile Include="../../Services/Inventory/ProcessCpuSampler.cs" Link="Services/ProcessCpuSampler.cs" />
     <Compile Include="../../Services/Inventory/RunningApplicationMatch.cs" Link="Services/RunningApplicationMatch.cs" />
     <Compile Include="../../Services/Storage/WindowPlacementStore.cs" Link="Services/WindowPlacementStore.cs" />

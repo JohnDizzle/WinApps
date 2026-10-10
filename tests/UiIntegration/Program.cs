@@ -49,6 +49,57 @@ public sealed partial class ChecksApplication : Application
     {
         try
         {
+            if (Environment.GetCommandLineArgs().Contains("--launch-diagnostics"))
+            {
+                var registered = new WinApps.Services.Inventory.DesktopAppCatalog().Scan();
+                var shortcuts = new WinApps.Services.Inventory.StartMenuCatalog().Scan();
+                var merged = WinApps.Services.Inventory.DesktopAppMerge.Merge(registered.Apps, shortcuts.Apps);
+                foreach (var group in new[] { ("registered", registered.Apps), ("shortcuts", shortcuts.Apps), ("merged", merged) })
+                    foreach (var item in group.Item2.Where(item => item.Name.Contains("CapCut", StringComparison.OrdinalIgnoreCase)))
+                        Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { Stage = group.Item1, App = item, CanLaunch = WinApps.Services.Packages.ApplicationLauncher.CanLaunch(item) }));
+                var target = merged.Single(item => item.Name == "CapCut");
+                if (!WinApps.Services.Packages.ApplicationLauncher.CanLaunch(target)) throw new InvalidOperationException("CapCut has no launch target.");
+                var launchReconciler = new Reconciler();
+                var launchControls = launchReconciler.Mount(Component<ApplicationLaunchActions, ApplicationLaunchActionsProps>(new(target, null)), () => { })!;
+                if (!Descendants(launchControls).OfType<Button>().Any(button =>
+                    Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(button) == "Launch CapCut" && button.IsEnabled))
+                    throw new InvalidOperationException("CapCut header Launch button is missing or disabled.");
+                Console.WriteLine("Verified enabled CapCut header Launch button.");
+                if (Environment.GetCommandLineArgs().Contains("--launch-capcut"))
+                {
+                    var result = await new WinApps.Services.Packages.ApplicationLauncher().LaunchAsync(target, false);
+                    Console.WriteLine(result);
+                    if (result != "Application launched.") throw new InvalidOperationException(result);
+                }
+                Console.WriteLine("Verified CapCut launch target.");
+                return;
+            }
+            if (Environment.GetCommandLineArgs().Contains("--close-checks"))
+            {
+                if (WinApps.Services.Inventory.ApplicationWindows.IsAppWindow(Windows.Win32.PInvoke.GetShellWindow()))
+                    throw new InvalidOperationException("The desktop shell must never be a close target.");
+                using var current = System.Diagnostics.Process.GetCurrentProcess();
+                var self = new WinApps.Services.Inventory.RunningApplication(current.Id, current.StartTime.ToUniversalTime().Ticks,
+                    "WinApps", "", current.MainModule!.FileName, 0, 0);
+                if (!WinApps.Services.Inventory.RunningApplications.RequestClose(self).Contains("cannot close itself"))
+                    throw new InvalidOperationException("Self-close protection failed.");
+                Console.WriteLine("Passed desktop-shell and self-close protection checks.");
+                return;
+            }
+            if (Environment.GetCommandLineArgs().Contains("--registry-process-check"))
+            {
+                var registryEditor = new WinApps.Services.Inventory.StartMenuCatalog().Scan().Apps.Single(app => app.Name == "Registry Editor");
+                var matches = WinApps.Services.Inventory.RunningApplications.Read(registryEditor);
+                if (matches.Any(item => !item.Path.Equals(registryEditor.ExecutablePath, StringComparison.OrdinalIgnoreCase)))
+                    throw new InvalidOperationException("Registry Editor matched an unrelated executable.");
+                Console.WriteLine($"Registry Editor executable: {registryEditor.ExecutablePath}; matching processes: {matches.Length}");
+                foreach (var item in matches) Console.WriteLine($"PID {item.Id}: {item.Path}");
+                var cache = new WinApps.Services.Inventory.ApplicationLibraryCache(Path.GetFullPath("artifacts/old-library-check.json"));
+                System.IO.File.WriteAllText(Path.GetFullPath("artifacts/old-library-check.json"), "{\"SchemaVersion\":2,\"Apps\":[]}");
+                if (cache.Load() is not null) throw new InvalidOperationException("Old inventory must trigger a new scan.");
+                Console.WriteLine("Passed exact executable matching and cache migration checks.");
+                return;
+            }
             var reconciler = new Reconciler();
             var checks = 0;
             void Check(bool value, string message)
@@ -108,6 +159,32 @@ public sealed partial class ChecksApplication : Application
                 }
             }
             var app = new InstalledApp("Fixture", "fixture-family", "fixture-family!App", "Publisher", "1", "", "");
+            if (Environment.GetCommandLineArgs().Contains("--tab-navigation-checks"))
+            {
+                var tabView = "Overview";
+                Element TabDetail() => Component<ApplicationDetailPane, ApplicationDetailPaneProps>(new(app, [], null,
+                    new([], []), null, null, "", tabView, false, "", next => tabView = next,
+                    () => { }, _ => { }, _ => { }, _ => { })).WithKey("tab-detail");
+                var tabTree = TabDetail();
+                var tabNative = reconciler.Mount(tabTree, () => { })!;
+                foreach (var nextView in new[] { "Settings", "Overview", "Registry", "Overview" })
+                {
+                    var button = Descendants(tabNative).OfType<Button>().Single(control =>
+                        Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(control) == $"View {nextView}");
+                    ((Microsoft.UI.Xaml.Automation.Provider.IInvokeProvider)new Microsoft.UI.Xaml.Automation.Peers.ButtonAutomationPeer(button)
+                        .GetPattern(Microsoft.UI.Xaml.Automation.Peers.PatternInterface.Invoke)).Invoke();
+                    await new UiDelay(50);
+                    Check(tabView == nextView, "Tab clicks must change the selected section.");
+                    var nextTree = TabDetail();
+                    tabNative = reconciler.Reconcile(tabTree, nextTree, tabNative, () => { })!;
+                    tabTree = nextTree;
+                    Check(Descendants(tabNative).OfType<Button>().Where(control =>
+                        Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(control).StartsWith("View ")).All(control => control.IsEnabled),
+                        "Section tabs must remain enabled after native clicks and reconciliation.");
+                }
+                Console.WriteLine("Passed repeated native tab-navigation checks.");
+                return;
+            }
             var railApps = new[] { app };
             var hiddenWindow = new Window();
             var hiddenHandle = WinRT.Interop.WindowNative.GetWindowHandle(hiddenWindow);
@@ -232,8 +309,11 @@ public sealed partial class ChecksApplication : Application
             Check(backActions == 1, "The app header back button must clear selection even while inspection is loading.");
             Check(Descendants(loadingNative).OfType<Button>()
                 .Where(button => new[] { "View Overview", "View Package", "View Storage", "View Settings", "View Registry", "View LocalState" }.Contains(Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(button)))
-                .All(button => button.IsEnabled),
-                "Section tabs must remain interactive while app inspection runs.");
+                .All(button => !button.IsEnabled),
+                "Section tabs must pause while app inspection runs so competing detail loads cannot overlap.");
+            Check(Descendants(loadingNative).OfType<Button>().Single(button =>
+                    Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(button) == "Launch Fixture").IsEnabled,
+                "Launching an app must remain available while its details are being inspected.");
             var railInventory = new AppDataInventory([], []);
             InstalledApp? railSelection = app;
             var unexpectedClears = 0;
@@ -427,7 +507,7 @@ public sealed partial class ChecksApplication : Application
             {
                 var noticeText = "First action completed";
                 Element Notice() => VStack(0,
-                    Component<ActionNotificationStack>().WithKey("stack"),
+                    Component<StackBehaviorNotification>().WithKey("stack"),
                     Component<TransientActionNotice, TransientActionNoticeProps>(new(noticeText)).WithKey("notice"));
                 var noticeTree = Notice();
                 UIElement? noticeNative = null;
@@ -442,20 +522,25 @@ public sealed partial class ChecksApplication : Application
                 RenderNotice();
                 await new UiDelay(2500);
                 var noticeRoot = noticeNative;
-                var noticeControl = Descendants(noticeNative).OfType<TextBlock>().Single(text => text.Text == noticeText);
+                var noticeControl = Descendants(noticeNative).OfType<InfoBar>().Single(bar => bar.Message == noticeText);
                 Check(noticeControl.Visibility == Visibility.Visible, "Action notices must initially be visible.");
+                var noticeCard = Descendants(noticeNative).OfType<InfoBar>().Single(bar => bar.Message == noticeText);
+                Check(noticeCard.IsOpen && noticeCard.MaxWidth == 400 && noticeCard.Severity == InfoBarSeverity.Success,
+                    "Action notices must use compact semantic alerts.");
+                Check(noticeCard.Title == "Action completed" && noticeCard.Content is null && noticeCard.CornerRadius.TopLeft == 16,
+                    "Action notices must have rounded corners and no branding content.");
                 noticeText = "Second action completed";
                 RenderNotice();
                 await new UiDelay(100);
-                Check(Descendants(noticeNative).OfType<TextBlock>().Count(text => text.Text.EndsWith("action completed")) == 2,
+                Check(Descendants(noticeNative).OfType<InfoBar>().Count(bar => bar.Message.EndsWith("action completed")) == 2,
                     "Notifications must stack instead of replacing the previous app's message.");
-                await new UiDelay(3000);
-                Check(Descendants(noticeNative).OfType<TextBlock>().Any(text => text.Text == noticeText) &&
-                    !Descendants(noticeNative).OfType<TextBlock>().Any(text => text.Text == "First action completed"),
+                await new UiDelay(5600);
+                Check(Descendants(noticeNative).OfType<InfoBar>().Any(bar => bar.Message == noticeText) &&
+                    !Descendants(noticeNative).OfType<InfoBar>().Any(bar => bar.Message == "First action completed"),
                     "An earlier timer must not dismiss a newer action notice.");
-                await new UiDelay(2500);
-                Check(!Descendants(noticeNative).OfType<TextBlock>().Any(text => text.Text.EndsWith("action completed")),
-                    "Action notices must clear after five seconds.");
+                await new UiDelay(3000);
+                Check(!Descendants(noticeNative).OfType<InfoBar>().Any(bar => bar.Message.EndsWith("action completed")),
+                    "Action notices must clear after eight seconds.");
                 Check(ReferenceEquals(noticeRoot, noticeNative), "Notice expiry must retain its native root.");
                 var uninstallCallbacks = 0;
                 var actionTree = Component<ApplicationLaunchActions, ApplicationLaunchActionsProps>(new(app, null, _ => uninstallCallbacks++));

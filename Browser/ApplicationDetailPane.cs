@@ -97,6 +97,12 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
         var view = Props.View;
         var busy = Props.Busy;
         var status = Props.Status;
+        void SelectView(string next)
+        {
+            if (selected is null || Props.Loading || view == next) return;
+            Props.OnView(next);
+            BackToTop();
+        }
         void setView(string next) => Props.OnView(next);
         void Measure() => Props.OnMeasure();
         void OpenFolder(string path) => Props.OnOpenFolder(path);
@@ -107,7 +113,9 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
             Apps: Props.Apps, OnSelect: Props.OnSelect, OnSelectActivity: Props.OnSelectActivity)).WithKey("pc-activity");
         if (selected is not null)
         {
-            if (view == "Overview")
+            if (selected.ConsolePath is not null)
+                content = Component<AdministrativeToolView, AdministrativeToolViewProps>(new(selected, OpenFolder)).WithKey(selected.FullName);
+            else if (view == "Overview")
                 content = VStack(12,
                     Component<ApplicationResourceCard, ApplicationResourceCardProps>(new(selected, Props.InitialActivity)).WithKey($"footprint-{selected.FullName}"),
                     Component<ApplicationOverviewCards, ApplicationOverviewCardsProps>(new(selected, packageConfiguration, Props.Compact, busy, setView, OpenFolder)).WithKey($"overview-cards-{selected.FullName}"));
@@ -216,27 +224,26 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                             Slot("heading-icon", selected is null ? Icon(FontIcon("\uE71D", "Segoe Fluent Icons")).Width(32).Height(32) : AppIcon(selected, 32)),
                             VStack(4, TextBlock(selected?.Name ?? "WinApps").FontSize(22).SemiBold(),
                                 TextBlock(selected is null ? activitySummary.Value :
+                                    selected.ConsolePath is not null ? "Windows administrative tool · This PC" :
                                     string.IsNullOrWhiteSpace(selected.FamilyName) ? "Desktop application · This PC" : "Packaged application · This PC")
                                     .FontSize(12).TextWrapping().Foreground(Theme.SecondaryText),
                                 TextBlock(status).FontSize(12).TextWrapping().Foreground(Theme.SecondaryText)
                                     .IsVisible(selected is null))).Flex(grow: 1, basis: 0),
-                        HStack(8, Slot("app-management", selected is not null ? Component<ApplicationManagementPanel, ApplicationManagementPanelProps>(new(selected))
-                            .WithKey($"management-{selected.FullName}") : Text("")).IsEnabled(!Props.Loading),
-                        Slot("desktop-terminate", selected is not null && string.IsNullOrWhiteSpace(selected.FamilyName)
-                            ? Component<ApplicationTerminateAction, ApplicationTerminateActionProps>(new(selected)).WithKey($"desktop-terminate-{selected.FullName}")
-                            : Text("").IsVisible(false)),
+                        HStack(8, Slot("app-management", selected is not null && selected.ConsolePath is null ? Component<ApplicationManagementPanel, ApplicationManagementPanelProps>(new(selected))
+                            .WithKey($"management-{selected.FullName}") : Text("")),
                         Slot("launch-actions", selected is not null ? Component<ApplicationLaunchActions, ApplicationLaunchActionsProps>(new(selected, packageConfiguration, Props.OnUninstalled))
                             .WithKey(selected.FullName) : Text(""))
-                            .IsEnabled(!Props.Loading).IsVisible(selected is not null && !string.IsNullOrWhiteSpace(selected.FamilyName))).Flex(shrink: 0)
+                            .IsVisible(selected is not null && WinApps.Services.Packages.ApplicationLauncher.CanLaunch(selected))).Flex(shrink: 0)
                     } },
-                    FlexRow(ScrollView(HStack(8, new[] { "Overview", "Package", "Storage", "Settings", "Registry", "LocalState" }.Select(tab =>
-                        GlassButton(Button(tab, () => { if (view != tab) { Props.OnView(tab); BackToTop(); } }), view == tab)
+                    FlexRow(ScrollView(HStack(8, (selected?.ConsolePath is not null ? new[] { "Overview" } : new[] { "Overview", "Package", "Storage", "Settings", "Registry", "LocalState" }).Select(tab =>
+                        GlassButton(Button(tab, () => SelectView(tab)), view == tab)
                             .Set(control =>
                             {
                                 BrowserMotion.Enable(control);
+                                BrowserMotion.CardSelectionFeedback(control, view == tab);
                                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetItemStatus(control, view == tab ? "Selected" : "");
                             }).CornerRadius(9).Padding(10)
-                            .AutomationName($"View {tab}").IsEnabled(selected is not null).WithKey(tab)).ToArray()))
+                            .AutomationName($"View {tab}").IsEnabled(selected is not null && !Props.Loading).WithKey(tab)).ToArray()))
                         .Set(control =>
                         {
                             control.ContentOrientation = Microsoft.UI.Xaml.Controls.ScrollingContentOrientation.Horizontal;

@@ -287,9 +287,7 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
             detailAttempt.Set(detailAttempt.Value + 1);
             status.Set("Choose an application from the list.");
         }
-        return FlexColumn(
-            Component<ActionNotificationStack>().WithKey("notifications")
-                .Margin(left: 12, top: 8, right: 12).Flex(shrink: 0),
+        return Grid([], [], [
             ExplorerLayoutTemplates.Render(compact.Value,
                 ErrorBoundary(Component<ApplicationRail, ApplicationRailProps>(new(apps.Value, selected.Value, inventory.Value,
                     view.Value, busy.Value, Select, Unselect, Scan, PreviewFile, OpenFile, OpenView, inspecting.Value && inventory.Value is null, compact.Value)).WithKey($"application-rail-{railAttempt.Value}"),
@@ -303,8 +301,11 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
                     error => Component<ErrorRecoveryPanel, ErrorRecoveryPanelProps>(new("Application details unavailable", error,
                         () => detailAttempt.Set(detailAttempt.Value + 1), RecoverList)))
                     .WithKey("detail-boundary").MinWidth(0).Flex(grow: 1, basis: 0)
-            ).Flex(grow: 1, basis: 0)
-        ).HAlign(HorizontalAlignment.Stretch).MinWidth(0).Set(control =>
+            ).HAlign(HorizontalAlignment.Stretch).VAlign(VerticalAlignment.Stretch),
+            Component<StackBehaviorNotification>().WithKey("notifications")
+                .HAlign(HorizontalAlignment.Right).VAlign(VerticalAlignment.Bottom)
+                .Margin(20)
+        ]).HAlign(HorizontalAlignment.Stretch).MinWidth(0).Set(control =>
         {
             if (control.Tag as string == "responsive-explorer") return;
             control.Tag = "responsive-explorer";

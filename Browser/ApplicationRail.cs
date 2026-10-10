@@ -3,6 +3,8 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using WinApps.Models;
+using WinApps.Services.Inventory;
+using WinApps.Services.Packages;
 using static Microsoft.UI.Reactor.Factories;
 
 using static WinApps.Browser.BrowserUi;
@@ -158,6 +160,12 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
             Slot("file-inventory", dataFileTree));
         // Keep the selected application's files inside its native ListView row.
         var selectedIndex = Array.FindIndex(visibleApps, app => app.FullName == selected?.FullName);
+        void Report(string message)
+        {
+            if (!string.IsNullOrWhiteSpace(message)) StackBehaviorNotification.Queue.Add(message, DateTimeOffset.UtcNow);
+        }
+        async void LaunchFromMenu(InstalledApp app, bool elevated) =>
+            Report(await new ApplicationLauncher().LaunchAsync(app, elevated));
         var appList = (ListView<InstalledApp>(visibleApps, app => app.FullName, (app, _) => Border(VStack(8,
             FlexRow(
                 Button(FluentGlyph("\uE73E", 12), Unselect)
@@ -167,8 +175,8 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                     .MinWidth(0).Width(24).Padding(0).Margin(right: 8).Flex(shrink: 0),
                 AppIcon(app).Margin(right: 12).Flex(shrink: 0),
                 VStack(3, TextBlock(app.Name).SemiBold().TextWrapping(),
-                    TextBlock(app.Source == "MSIX" ? "Packaged app" : "Desktop app").FontSize(12).Foreground(Theme.SecondaryText)).Flex(grow: 1, basis: 0)),
-            Slot("app-files", !Props.Compact && app.FullName == selected?.FullName
+                    TextBlock(app.ConsolePath is not null ? "Administrative tool" : app.Source == "MSIX" ? "Packaged app" : "Desktop app").FontSize(12).Foreground(Theme.SecondaryText)).Flex(grow: 1, basis: 0)),
+            Slot("app-files", app.ConsolePath is null && !Props.Compact && app.FullName == selected?.FullName
                 ? Props.Loading ? HStack(8,
                     ProgressRing().Width(20).Height(20).Set(control => { control.IsActive = true; control.IsIndeterminate = true; })
                         .AutomationName($"Loading files for {app.Name}"),
@@ -177,9 +185,11 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                     { appFilesOpen.Set(expanded); if (expanded) appsListOpen.Set(false); })
                     .AutomationName($"Files for {app.Name}")
                 : Text(""))
-        ).HAlign(HorizontalAlignment.Stretch).Padding(10))
+        ).HAlign(HorizontalAlignment.Stretch).Padding(12))
             .WithBorder(app.FullName == selected?.FullName ? Theme.Ref("TextFillColorSecondaryBrush") : Theme.Ref("ControlFillColorTransparentBrush"))
-            .CornerRadius(10).HAlign(HorizontalAlignment.Stretch).WithKey(app.FullName)) with { SelectedIndex = selectedIndex })
+            .CornerRadius(12).Margin(left: 4, top: 2, right: 8, bottom: 2).HAlign(HorizontalAlignment.Stretch)
+            .Set(control => control.ContextFlyout = CreateApplicationContextFlyout(app, Report, LaunchFromMenu))
+            .WithKey(app.FullName)) with { SelectedIndex = selectedIndex })
             .AutomationName("Alphabetical application list").IsEnabled(!busy).HAlign(HorizontalAlignment.Stretch)
             .Set(control =>
             {
@@ -231,9 +241,17 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                     Setters =
                     {
                         new Setter(Microsoft.UI.Xaml.Controls.Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch),
-                        new Setter(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Stretch)
+                        new Setter(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Stretch),
+                        new Setter(Microsoft.UI.Xaml.Controls.Control.PaddingProperty, new Thickness(0)),
+                        new Setter(Microsoft.UI.Xaml.Controls.Control.CornerRadiusProperty, new CornerRadius(12)),
+                        new Setter(Microsoft.UI.Xaml.Controls.Control.BackgroundProperty, new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent)),
+                        new Setter(Microsoft.UI.Xaml.Controls.Control.BorderBrushProperty, new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent))
                     }
                 };
+                var transparent = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                foreach (var key in new[] { "ListViewItemBackgroundSelected", "ListViewItemBackgroundSelectedPointerOver",
+                    "ListViewItemBackgroundSelectedPressed", "ListViewItemBackgroundPointerOver", "ListViewItemBackgroundPressed" })
+                    control.Resources[key] = transparent;
                 Microsoft.UI.Xaml.Controls.ScrollViewer.SetHorizontalScrollMode(control, Microsoft.UI.Xaml.Controls.ScrollMode.Disabled);
                 Microsoft.UI.Xaml.Controls.ScrollViewer.SetHorizontalScrollBarVisibility(control, Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Disabled);
                 Microsoft.UI.Xaml.Controls.ScrollViewer.SetVerticalScrollMode(control, Props.Compact
@@ -249,10 +267,10 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                 TextBox(search.Value, Filter, placeholderText: "Search your library").AutomationName("Search applications"),
                 ActionButton(busy ? "Working…" : "Refresh applications", Scan).AutomationName("Refresh applications").IsEnabled(!busy),
                 Slot("unselect", selected is not null ? ActionButton("Clear selection", () => { }).WithKey("clear-application-selection").IsEnabled(!busy).Set(AttachClearButton) : Text("")),
-                ScrollView(VStack(14,
-                Disclosure("Open Apps List", keyboard, !filtering && appsListOpen.Value, expanded =>
+                Disclosure("Browse all apps", keyboard, !filtering && appsListOpen.Value, expanded =>
                     { appsListOpen.Set(expanded); if (expanded) appFilesOpen.Set(false); })
-                    .AutomationName("Open Apps List").IsEnabled(!filtering),
+                    .AutomationName("Browse all apps").IsEnabled(!filtering),
+                ScrollView(VStack(14,
                 TextBlock($"{(filtering ? "Matches" : letter.Value)} · {visibleApps.Length} applications").Foreground(Theme.Ref("TextFillColorPrimaryBrush")).SemiBold(),
                 appList))
                     .AutomationName("Application rail scroll area")
@@ -267,9 +285,14 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                                 if (_railList is not null) RevealSelectedRow(_railList);
                             }
                             control.ExtentChanged += (_, _) => FollowSelection();
-                            control.ViewChanged += (_, _) => FollowSelection();
+                            control.ViewChanged += (_, _) =>
+                            {
+                                FollowSelection();
+                                if (control.VerticalOffset > 0 && appsListOpen.Value) appsListOpen.Set(false);
+                            };
                             control.AddHandler(UIElement.PointerWheelChangedEvent,
-                                new Microsoft.UI.Xaml.Input.PointerEventHandler((_, _) => { _followSelection = false; _pendingRevealKey = null; }), true);
+                                new Microsoft.UI.Xaml.Input.PointerEventHandler((_, _) =>
+                                    { _followSelection = false; _pendingRevealKey = null; if (appsListOpen.Value) appsListOpen.Set(false); }), true);
                             control.AddHandler(UIElement.PointerPressedEvent,
                                 new Microsoft.UI.Xaml.Input.PointerEventHandler((_, _) => { _followSelection = false; _pendingRevealKey = null; }), true);
                             control.KeyDown += (_, args) =>
@@ -303,12 +326,96 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
             return Border(VStack(8,
                 TextBlock("Applications").SemiBold(),
                 TextBox(search.Value, Filter, placeholderText: "Search your library").AutomationName("Search applications"),
-                Disclosure(selected?.Name ?? "Choose an application", appList.Height(160), filtering || appsListOpen.Value,
-                    expanded => appsListOpen.Set(expanded)).AutomationName("Choose application")))
+                Disclosure("Browse all apps", keyboard, !filtering && appsListOpen.Value,
+                    expanded => appsListOpen.Set(expanded)).AutomationName("Browse all apps").IsEnabled(!filtering),
+                TextBlock($"{(filtering ? "Matches" : letter.Value)} · {visibleApps.Length} applications")
+                    .FontSize(12).Foreground(Theme.SecondaryText),
+                appList.Height(160)))
                 .Padding(12).Background(Theme.LayerFill).WithBorder(Theme.CardStroke).CornerRadius(12)
                 .Margin(12).Flex(shrink: 0);
         return navigation;
     }
+
+    private static Microsoft.UI.Xaml.Controls.MenuFlyout CreateApplicationContextFlyout(InstalledApp app,
+        Action<string> report, Action<InstalledApp, bool> launch)
+    {
+        var menu = new Microsoft.UI.Xaml.Controls.MenuFlyout();
+        CancellationTokenSource? instanceScan = null;
+        menu.Closed += (_, _) =>
+        {
+            instanceScan?.Cancel();
+            instanceScan?.Dispose();
+            instanceScan = null;
+        };
+        menu.Opening += async (_, _) =>
+        {
+            instanceScan?.Cancel();
+            instanceScan?.Dispose();
+            instanceScan = new CancellationTokenSource();
+            var token = instanceScan.Token;
+            menu.Items.Clear();
+            var switchTo = new Microsoft.UI.Xaml.Controls.MenuFlyoutSubItem
+            {
+                Text = "Checking instances…",
+                Icon = MenuIcon("\uE8A7"),
+                IsEnabled = false
+            };
+            menu.Items.Add(switchTo);
+            menu.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
+            var launchItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
+            {
+                Text = app.ConsolePath is null ? "Launch" : "Launch tool",
+                Icon = MenuIcon("\uE768"),
+                IsEnabled = ApplicationLauncher.CanLaunch(app)
+            };
+            launchItem.Click += (_, _) => launch(app, false);
+            menu.Items.Add(launchItem);
+            var elevatedItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
+            {
+                Text = "Launch elevated",
+                Icon = MenuIcon("\uE7BA"),
+                IsEnabled = ApplicationLauncher.CanLaunchElevated(app)
+            };
+            elevatedItem.Click += (_, _) => launch(app, true);
+            menu.Items.Add(elevatedItem);
+            try
+            {
+                var instances = await Task.Run(() => RunningApplications.Read(app, cancellationToken: token)
+                    .Where(ApplicationWindowSwitcher.HasOpenWindow)
+                    .OrderBy(item => item.Title, StringComparer.OrdinalIgnoreCase).ToArray(), token);
+                if (token.IsCancellationRequested) return;
+                switchTo.Items.Clear();
+                switchTo.Text = $"Switch to ({instances.Length} {(instances.Length == 1 ? "instance" : "instances")})";
+                switchTo.IsEnabled = instances.Length > 0;
+                if (instances.Length == 0)
+                    switchTo.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
+                        { Text = "No running instances", IsEnabled = false, Icon = MenuIcon("\uE946") });
+                else foreach (var instance in instances)
+                {
+                    var item = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
+                    {
+                        Text = string.IsNullOrWhiteSpace(instance.Title) ? $"{app.Name} · PID {instance.Id}" : instance.Title,
+                        Icon = MenuIcon("\uE8A7")
+                    };
+                    item.Click += (_, _) => report(ApplicationWindowSwitcher.SwitchTo(instance));
+                    switchTo.Items.Add(item);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception error)
+            {
+                if (!token.IsCancellationRequested) report($"Could not inspect {app.Name} instances: {error.Message}");
+            }
+        };
+        return menu;
+    }
+
+    private static Microsoft.UI.Xaml.Controls.IconElement MenuIcon(string glyph) =>
+        new Microsoft.UI.Xaml.Controls.FontIcon
+        {
+            Glyph = glyph,
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Segoe Fluent Icons")
+        };
 
     private void RevealSelectedRow(Microsoft.UI.Xaml.Controls.ListView list)
     {

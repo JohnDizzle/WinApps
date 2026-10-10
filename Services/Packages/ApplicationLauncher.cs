@@ -7,10 +7,38 @@ namespace WinApps.Services.Packages;
 
 public sealed class ApplicationLauncher
 {
+    public static bool CanLaunch(InstalledApp app) =>
+        !string.IsNullOrWhiteSpace(app.FamilyName) || ResolveShortcut(app) is not null;
+
+    public static bool CanLaunchElevated(InstalledApp app) =>
+        app.ConsolePath is not null || ResolveShortcut(app) is not null || !string.IsNullOrWhiteSpace(app.FamilyName);
+
     public async Task<string> LaunchAsync(InstalledApp app, bool elevated)
     {
         try
         {
+            var shortcut = ResolveShortcut(app);
+            if (shortcut is not null)
+            {
+                ProcessStartInfo start;
+                if (elevated && app.ConsolePath is not null)
+                {
+                    var mmc = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "mmc.exe");
+                    start = new ProcessStartInfo(mmc)
+                    {
+                        UseShellExecute = true,
+                        Verb = "runas",
+                        Arguments = $"\"{app.ConsolePath}\""
+                    };
+                }
+                else
+                {
+                    start = new ProcessStartInfo(shortcut) { UseShellExecute = true };
+                    if (elevated) start.Verb = "runas";
+                }
+                Process.Start(start);
+                return elevated ? "Elevated launch requested." : "Application launched.";
+            }
             if (string.IsNullOrWhiteSpace(app.FamilyName)) return "No package launch identity is available for this application.";
             var package = new PackageManager().FindPackagesForUser(string.Empty).FirstOrDefault(item =>
                 item.Id.FamilyName == app.FamilyName && item.InstalledLocation.Path.Equals(app.InstallPath, StringComparison.OrdinalIgnoreCase));
@@ -36,5 +64,13 @@ public sealed class ApplicationLauncher
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223) { return "Elevated launch cancelled."; }
         catch (Exception ex) { return $"Launch failed: {ex.Message}"; }
+    }
+
+    private static string? ResolveShortcut(InstalledApp app)
+    {
+        var path = app.LaunchPath;
+        if (string.IsNullOrWhiteSpace(path) && app.FullName.StartsWith("StartMenu:", StringComparison.Ordinal))
+            path = app.FullName[10..];
+        return !string.IsNullOrWhiteSpace(path) && File.Exists(path) ? path : null;
     }
 }

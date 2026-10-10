@@ -7,7 +7,10 @@ internal static class RunningApplicationMatch
 {
     internal static InstalledApp? Find(string executable, string name, IReadOnlyList<InstalledApp> apps)
     {
-        var candidates = apps.Where(app => !string.IsNullOrWhiteSpace(app.InstallPath) && executable.Length > 0 &&
+        var executableMatches = apps.Where(app => app.ConsolePath is null && app.ExecutablePath is not null &&
+            app.ExecutablePath.Equals(executable, StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (executableMatches.Length == 1) return executableMatches[0];
+        var candidates = apps.Where(app => app.ExecutablePath is null && !string.IsNullOrWhiteSpace(app.InstallPath) && executable.Length > 0 &&
             executable.StartsWith(app.InstallPath.TrimEnd('\\', '/') + "\\", StringComparison.OrdinalIgnoreCase)).ToArray();
         if (candidates.Length > 0)
         {

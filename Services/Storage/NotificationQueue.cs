@@ -12,7 +12,7 @@ public sealed class NotificationQueue
     public void Add(string message, DateTimeOffset now)
     {
         if (string.IsNullOrWhiteSpace(message)) return;
-        Entries = Entries.Append(new(++_nextId, message, now.AddSeconds(5))).TakeLast(4).ToArray();
+        Entries = Entries.Append(new(++_nextId, message, now.AddSeconds(8))).TakeLast(4).ToArray();
         Changed?.Invoke();
     }
 

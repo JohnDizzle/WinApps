@@ -43,12 +43,17 @@ public sealed class StartMenuCatalog
                                     System.Text.RegularExpressions.Regex.IsMatch(name, @"(?i)\b(uninstall|setup|update|help)\b")) continue;
                                 shortcut = ((dynamic)shell).CreateShortcut(path);
                                 var target = ((string?)((dynamic)shortcut).TargetPath ?? "").Trim().Trim('"');
+                                target = Environment.ExpandEnvironmentVariables(target);
+                                var arguments = (string?)((dynamic)shortcut).Arguments ?? "";
+                                var console = AdministrativeTools.ConsoleTarget(target, arguments);
                                 if (!Path.IsPathFullyQualified(target) || !File.Exists(target) ||
-                                    !Path.GetExtension(target).Equals(".exe", StringComparison.OrdinalIgnoreCase)) continue;
+                                    (console is null && !Path.GetExtension(target).Equals(".exe", StringComparison.OrdinalIgnoreCase))) continue;
+                                if (console is not null && !File.Exists(console)) continue;
                                 var iconLocation = (string?)((dynamic)shortcut).IconLocation;
                                 var icon = ApplicationIcons.DesktopIcon(iconLocation) ?? ApplicationIcons.DesktopIcon(target);
                                 apps.Add(new(name, "", $"StartMenu:{path}", "Unknown", "Unknown", "",
-                                    Path.GetDirectoryName(target) ?? "", "Desktop · Start Menu", IconUri: icon));
+                                    Path.GetDirectoryName(console ?? target) ?? "", console is null ? "Desktop · Start Menu" : "Windows administrative tool",
+                                    IconUri: icon, ConsolePath: console, LaunchPath: path, ExecutablePath: target));
                             }
                             catch (Exception ex) when (ex is COMException or IOException or UnauthorizedAccessException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
                             { skipped++; }

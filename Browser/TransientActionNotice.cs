@@ -15,7 +15,7 @@ internal sealed class TransientActionNotice : Component<TransientActionNoticePro
     {
         UseEffect(() =>
         {
-            ActionNotificationStack.Queue.Add(Props.Message, DateTimeOffset.UtcNow);
+            StackBehaviorNotification.Queue.Add(Props.Message, DateTimeOffset.UtcNow);
         }, Props.Message, Props.Version);
         return VStack(0).IsVisible(false);
     }

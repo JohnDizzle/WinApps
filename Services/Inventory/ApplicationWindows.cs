@@ -54,6 +54,9 @@ internal static class ApplicationWindows
     {
         if (!PInvoke.IsWindowVisible(window) || window == PInvoke.GetShellWindow() ||
             PInvoke.GetWindow(window, GET_WINDOW_CMD.GW_OWNER) != default) return false;
+        var classBuffer = stackalloc char[256];
+        var classLength = PInvoke.GetClassName(window, classBuffer, 256);
+        if (new string(classBuffer, 0, classLength) is "Shell_TrayWnd" or "Shell_SecondaryTrayWnd" or "Progman" or "WorkerW") return false;
         var style = (uint)PInvoke.GetWindowLong(window, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
         // Tool windows and activation-free overlays are not application windows.
         if ((style & (0x00000080u | 0x08000000u)) != 0) return false;

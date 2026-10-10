@@ -34,6 +34,32 @@ string Preview(string name, string content, Encoding? encoding = null)
 
 try
 {
+    Check(AdministrativeTools.ConsoleTarget(@"C:\Windows\System32\services.msc", "") == @"C:\Windows\System32\services.msc",
+        "Direct MMC console shortcuts must be discoverable.");
+    Check(AdministrativeTools.ConsoleTarget(@"C:\Windows\System32\mmc.exe", "\"C:\\Windows\\System32\\compmgmt.msc\" /s") == @"C:\Windows\System32\compmgmt.msc",
+        "MMC shortcuts must retain the individual console identity.");
+    Check(AdministrativeTools.ConsoleTarget(@"C:\Windows\System32\mmc.exe", "services.msc /s") == @"C:\Windows\System32\services.msc",
+        "Relative MMC consoles must resolve beside the host.");
+    Check(AdministrativeTools.ConsoleTarget(@"C:\Apps\editor.exe", "notes.msc") is null,
+        "Unrelated executables must not be classified as MMC consoles.");
+    var officeSuite = new InstalledApp("Microsoft Office", "", "registry:office", "Microsoft", "16", "", @"C:\Office");
+    var excel = officeSuite with { Name = "Excel", FullName = "StartMenu:excel", Source = "Desktop · Start Menu" };
+    var word = excel with { Name = "Word", FullName = "StartMenu:word" };
+    var officeApps = DesktopAppMerge.Merge([officeSuite], [excel, word]);
+    Check(officeApps.Count == 3 && officeApps.Contains(excel) && officeApps.Contains(word),
+        "Office suite and individual applications sharing a folder must remain visible.");
+    var registeredExcel = excel with { FullName = "registry:excel", IconUri = null };
+    Check(DesktopAppMerge.Merge([registeredExcel], [excel]).Count == 1,
+        "A matching named application in the same folder must not be duplicated.");
+    Check(DesktopAppMerge.Merge([registeredExcel], [excel with { InstallPath = @"C:\OtherOffice" }]).Count == 2,
+        "Same-named applications in different folders must remain separate.");
+    var capcut = new InstalledApp("CapCut", "", "registry:capcut", "Bytedance", "8", "", @"C:\Apps\CapCut\Apps\8.1");
+    var capcutShortcut = capcut with { FullName = "StartMenu:capcut", InstallPath = @"C:\Apps\CapCut\Apps", LaunchPath = @"C:\Shortcuts\CapCut.lnk", ExecutablePath = @"C:\Apps\CapCut\Apps\CapCut.exe" };
+    var mergedCapcut = DesktopAppMerge.Merge([capcut], [capcutShortcut]);
+    Check(mergedCapcut.Count == 1 && mergedCapcut[0].LaunchPath == capcutShortcut.LaunchPath && mergedCapcut[0].ExecutablePath == capcutShortcut.ExecutablePath,
+        "Versioned install folders must retain the named application's launcher shortcut.");
+    Check(DesktopAppMerge.Merge([capcut with { InstallPath = @"C:\Apps\CapCutOther" }], [capcutShortcut]).Count == 2,
+        "Nested-folder matching must respect directory boundaries.");
     var parentApp = new InstalledApp("Suite", "", "suite", "", "", "", @"C:\Apps\Suite");
     var childApp = parentApp with { Name = "Editor", FullName = "editor", InstallPath = @"C:\Apps\Suite\Editor" };
     Check(RunningApplicationMatch.Find(@"C:\Apps\Suite\Editor\editor.exe", "Process", [parentApp, childApp]) == childApp,
@@ -60,19 +86,19 @@ try
     notifications.Add("First application finished", noticeTime);
     notifications.Add("Second application finished", noticeTime.AddSeconds(2));
     Check(notifications.Entries.Count == 2, "A new notification must retain earlier active messages.");
-    notifications.Expire(noticeTime.AddSeconds(5));
+    notifications.Expire(noticeTime.AddSeconds(8));
     Check(notifications.Entries.Count == 1 && notifications.Entries[0].Message.StartsWith("Second"),
         "Earlier notification expiry must not dismiss a newer message.");
-    notifications.Add("Same message", noticeTime.AddSeconds(5));
-    notifications.Add("Same message", noticeTime.AddSeconds(5));
+    notifications.Add("Same message", noticeTime.AddSeconds(8));
+    notifications.Add("Same message", noticeTime.AddSeconds(8));
     Check(notifications.Entries.Select(entry => entry.Id).Distinct().Count() == 3,
         "Repeated notifications must retain distinct identities.");
     notifications.Dismiss(notifications.Entries[1].Id);
     Check(notifications.Entries.Count == 2, "Dismiss must remove only its own notification.");
-    for (var n = 0; n < 8; n++) notifications.Add($"Notice {n}", noticeTime.AddSeconds(5));
+    for (var n = 0; n < 8; n++) notifications.Add($"Notice {n}", noticeTime.AddSeconds(8));
     Check(notifications.Entries.Count == 4 && notifications.Entries[^1].Message == "Notice 7",
         "Notification stacks must remain bounded and retain the newest messages.");
-    notifications.Expire(noticeTime.AddSeconds(10));
+    notifications.Expire(noticeTime.AddSeconds(16));
     Check(notifications.Entries.Count == 0, "Every notification must expire independently.");
     var placementPath = Path.Combine(root, "window.json");
     var placementStore = new WindowPlacementStore(placementPath);
@@ -266,9 +292,9 @@ try
     Check(cache.Save([]) is null && cache.Load()?.Apps.Length == 0, "Empty library should remain valid");
     File.WriteAllText(cachePath, "broken");
     Check(cache.Load() is null, "Corrupt cache should trigger discovery");
-    File.WriteAllText(cachePath, "{\"SchemaVersion\":2,\"Apps\":[]}");
+    File.WriteAllText(cachePath, "{\"SchemaVersion\":99,\"Apps\":[]}");
     Check(cache.Load() is null, "Unsupported cache versions should trigger discovery");
-    File.WriteAllText(cachePath, "{\"SchemaVersion\":1,\"Apps\":[null]}");
+    File.WriteAllText(cachePath, "{\"SchemaVersion\":3,\"Apps\":[null]}");
     Check(cache.Load() is null, "Invalid cache entries should trigger discovery");
     Check(cache.Save([app]) is null && cache.Load()?.Apps.Length == 1, "Refresh should replace invalid cache");
     var json = Preview("valid.json", "{\"items\":[1,true,null],\"name\":\"example\"}");

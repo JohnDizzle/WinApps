@@ -64,28 +64,7 @@ public sealed class AppInventory
     {
         var registered = new DesktopAppCatalog().Scan();
         var shortcuts = new StartMenuCatalog().Scan();
-        var merged = registered.Apps.ToList();
-        foreach (var shortcut in shortcuts.Apps)
-        {
-            var index = merged.FindIndex(app => app.Name.Equals(shortcut.Name, StringComparison.OrdinalIgnoreCase));
-            if (index < 0)
-            {
-                var candidates = merged.Select((app, position) => (app, position)).Where(item =>
-                    !string.IsNullOrEmpty(item.app.InstallPath) && item.app.InstallPath.TrimEnd('\\').Equals(
-                        shortcut.InstallPath.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)).ToArray();
-                if (candidates.Length == 1) index = candidates[0].position;
-            }
-            if (index >= 0)
-            {
-                var existing = merged[index];
-                merged[index] = existing with
-                {
-                    IconUri = shortcut.IconUri ?? existing.IconUri,
-                    InstallPath = string.IsNullOrEmpty(existing.InstallPath) ? shortcut.InstallPath : existing.InstallPath
-                };
-            }
-            else merged.Add(shortcut);
-        }
+        var merged = DesktopAppMerge.Merge(registered.Apps, shortcuts.Apps);
         var desktop = new PackageScan(merged, registered.Skipped + shortcuts.Skipped);
         try
         {

@@ -12,3 +12,5 @@ GetShellWindow
 GetWindow
 GetWindowLong
 DwmGetWindowAttribute
+
+PostMessage
