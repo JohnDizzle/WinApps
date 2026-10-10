@@ -100,6 +100,47 @@ public sealed partial class ChecksApplication : Application
                 Console.WriteLine("Passed exact executable matching and cache migration checks.");
                 return;
             }
+            if (Environment.GetCommandLineArgs().Contains("--asset-checks"))
+            {
+                var folder = Path.GetFullPath(Path.Combine("artifacts", "asset-check-" + Guid.NewGuid().ToString("N")));
+                Directory.CreateDirectory(folder);
+                var source = Path.Combine(folder, "source.png");
+                using (var bitmap = new System.Drawing.Bitmap(64, 64)) bitmap.Save(source, System.Drawing.Imaging.ImageFormat.Png);
+                var fixture = new InstalledApp("Fixture", "", "fixture", "", "", "", "",
+                    IconUri: new Uri(source).AbsoluteUri, ExecutablePath: Environment.ProcessPath,
+                    LaunchArguments: "--fixture argument", WorkingDirectory: folder);
+                var png = WinApps.Services.Packages.ApplicationAssets.ExportImage(fixture, false, folder);
+                var ico = WinApps.Services.Packages.ApplicationAssets.ExportImage(fixture, true, folder);
+                using (var icon = new System.Drawing.Icon(ico))
+                    if (icon.Width != 64) throw new InvalidOperationException("Invalid exported ICO.");
+                using (var image = new System.Drawing.Bitmap(png))
+                    if (image.Width != 64) throw new InvalidOperationException("Invalid exported PNG.");
+                var linkPath = WinApps.Services.Packages.ApplicationAssets.CreateShortcut(fixture, folder);
+                dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
+                dynamic link = shell.CreateShortcut(linkPath);
+                try
+                {
+                    if ((string)link.Arguments != fixture.LaunchArguments || (string)link.WorkingDirectory != folder ||
+                        !string.Equals((string)link.TargetPath, fixture.ExecutablePath, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidOperationException("Shortcut must preserve target, arguments and working directory.");
+                }
+                finally { System.Runtime.InteropServices.Marshal.FinalReleaseComObject(link); System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shell); }
+                var duplicate = WinApps.Services.Packages.ApplicationAssets.CreateShortcut(fixture with { LaunchPath = linkPath }, folder);
+                if (duplicate == linkPath || !File.ReadAllBytes(linkPath).SequenceEqual(File.ReadAllBytes(duplicate)))
+                    throw new InvalidOperationException("Existing shortcuts must copy exactly without overwriting.");
+                var packagedShortcut = WinApps.Services.Packages.ApplicationAssets.CreateShortcut(fixture with { FamilyName = "fixture-family", FullName = "fixture-family!App" }, folder);
+                dynamic packageShell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
+                dynamic packageLink = packageShell.CreateShortcut(packagedShortcut);
+                try
+                {
+                    var iconPath = ((string)packageLink.IconLocation).Split(',')[0];
+                    if (!File.Exists(iconPath) || !iconPath.EndsWith(".ico", StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidOperationException("Packaged shortcuts must use application artwork instead of Explorer's icon.");
+                }
+                finally { System.Runtime.InteropServices.Marshal.FinalReleaseComObject(packageLink); System.Runtime.InteropServices.Marshal.FinalReleaseComObject(packageShell); }
+                Console.WriteLine("Passed PNG, ICO and shortcut preservation checks.");
+                return;
+            }
             var reconciler = new Reconciler();
             var checks = 0;
             void Check(bool value, string message)

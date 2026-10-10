@@ -53,7 +53,8 @@ public sealed class StartMenuCatalog
                                 var icon = ApplicationIcons.DesktopIcon(iconLocation) ?? ApplicationIcons.DesktopIcon(target);
                                 apps.Add(new(name, "", $"StartMenu:{path}", "Unknown", "Unknown", "",
                                     Path.GetDirectoryName(console ?? target) ?? "", console is null ? "Desktop · Start Menu" : "Windows administrative tool",
-                                    IconUri: icon, ConsolePath: console, LaunchPath: path, ExecutablePath: target));
+                                    IconUri: icon, ConsolePath: console, LaunchPath: path, ExecutablePath: target, LaunchArguments: arguments,
+                                    WorkingDirectory: Environment.ExpandEnvironmentVariables((string?)((dynamic)shortcut).WorkingDirectory ?? "")));
                             }
                             catch (Exception ex) when (ex is COMException or IOException or UnauthorizedAccessException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
                             { skipped++; }

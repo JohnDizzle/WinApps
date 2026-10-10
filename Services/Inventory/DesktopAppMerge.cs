@@ -33,7 +33,9 @@ public static class DesktopAppMerge
                 IconUri = shortcut.IconUri ?? existing.IconUri,
                 InstallPath = string.IsNullOrEmpty(existing.InstallPath) ? shortcut.InstallPath : existing.InstallPath,
                 LaunchPath = shortcut.LaunchPath,
-                ExecutablePath = shortcut.ExecutablePath
+                ExecutablePath = shortcut.ExecutablePath,
+                LaunchArguments = shortcut.LaunchArguments,
+                WorkingDirectory = shortcut.WorkingDirectory
             };
         }
         return merged;

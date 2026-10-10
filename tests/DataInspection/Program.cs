@@ -294,7 +294,7 @@ try
     Check(cache.Load() is null, "Corrupt cache should trigger discovery");
     File.WriteAllText(cachePath, "{\"SchemaVersion\":99,\"Apps\":[]}");
     Check(cache.Load() is null, "Unsupported cache versions should trigger discovery");
-    File.WriteAllText(cachePath, "{\"SchemaVersion\":3,\"Apps\":[null]}");
+    File.WriteAllText(cachePath, "{\"SchemaVersion\":4,\"Apps\":[null]}");
     Check(cache.Load() is null, "Invalid cache entries should trigger discovery");
     Check(cache.Save([app]) is null && cache.Load()?.Apps.Length == 1, "Refresh should replace invalid cache");
     var json = Preview("valid.json", "{\"items\":[1,true,null],\"name\":\"example\"}");

@@ -11,6 +11,12 @@ internal static class ActivityCardStyle
         new[] { TextBlock(title).FontSize(20).Bold() }.Concat(children).ToArray()).Padding(16))
         .Background(Theme.CardBackground).WithBorder(Theme.CardStroke).CornerRadius(12);
 
+    internal static BorderElement SectionWithAction(string title, Element action, params Element[] children) => Border(VStack(8,
+        new[] { FlexRow(
+            TextBlock(title).FontSize(20).Bold().VAlign(Microsoft.UI.Xaml.VerticalAlignment.Center).Flex(grow: 1, basis: 0),
+            action.Flex(shrink: 0)) }.Concat(children).ToArray()).Padding(16))
+        .Background(Theme.CardBackground).WithBorder(Theme.CardStroke).CornerRadius(12);
+
     // Opaque theme surfaces keep cards readable above the window's tinted material.
     internal static BorderElement Surface(Element content) => Border(content)
         .Background(Theme.Ref("SolidBackgroundFillColorSecondaryBrush"))
