@@ -18,6 +18,8 @@ public sealed record PackageExplorerProps(bool NavigationVisible = true);
 
 public sealed class PackageExplorer : Component<PackageExplorerProps>
 {
+    private readonly ApplicationViewHistory _viewHistory = ApplicationViewHistory.Shared;
+    private int _historyRevision;
     private int _selectionVersion;
     private bool _compactLayout;
     private (string Key, RunningApplication[] Snapshot)? _nextActivitySnapshot;
@@ -48,6 +50,14 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
     }
     public override Element Render()
     {
+        var historyVersion = UseState(0);
+        UseEffect(() =>
+        {
+            void RefreshHistory() => historyVersion.Set(++_historyRevision);
+            _viewHistory.Changed += RefreshHistory;
+            return () => _viewHistory.Changed -= RefreshHistory;
+        }, Array.Empty<object>());
+        var window = UseWindow();
         var ui = new ResumeOnUi(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread());
         var apps = UseState(Array.Empty<InstalledApp>());
         var selection = UseState(InitialSelection);
@@ -142,9 +152,17 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
 
         UseEffect(LoadLibrary, Array.Empty<object>());
 
-        async void Select(InstalledApp app)
+        void Select(InstalledApp app) => SelectCore(app, true);
+        void SelectSuggestion(InstalledApp app)
         {
             if (busy.Value) return;
+            _viewHistory.RecordHit(app, "library");
+            Select(app);
+        }
+        async void SelectCore(InstalledApp app, bool recordView)
+        {
+            if (busy.Value) return;
+            if (recordView) _viewHistory.Record(app);
             var initialActivity = _nextActivitySnapshot?.Key == app.FullName ? _nextActivitySnapshot.Value.Snapshot : null;
             _nextActivitySnapshot = null;
             _inspectionCancellation?.Cancel();
@@ -276,7 +294,7 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
             _applicationCache.Clear();
             if (selected.Value is null || busy.Value) return;
             var currentView = view.Value;
-            Select(selected.Value);
+            SelectCore(selected.Value, false);
             view.Set(currentView);
         }
         void RecoverList()
@@ -290,7 +308,8 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
         return Grid([], [], [
             ExplorerLayoutTemplates.Render(compact.Value,
                 ErrorBoundary(Component<ApplicationRail, ApplicationRailProps>(new(apps.Value, selected.Value, inventory.Value,
-                    view.Value, busy.Value, Select, Unselect, Scan, PreviewFile, OpenFile, OpenView, inspecting.Value && inventory.Value is null, compact.Value)).WithKey($"application-rail-{railAttempt.Value}"),
+                    view.Value, busy.Value, Select, Unselect, Scan, PreviewFile, OpenFile, OpenView, inspecting.Value && inventory.Value is null, compact.Value, _viewHistory.MostViewed(apps.Value), SelectSuggestion,
+                    shown => _viewHistory.RecordExposure(shown, "library"), Props.NavigationVisible, _viewHistory.Policy.Enabled)).WithKey($"application-rail-{railAttempt.Value}"),
                     error => Component<ErrorRecoveryPanel, ErrorRecoveryPanelProps>(new("Application list unavailable", error,
                         () => railAttempt.Set(railAttempt.Value + 1), RecoverList)).Width(400))
                     .WithKey("rail-boundary").IsVisible(Props.NavigationVisible).Flex(shrink: 0),
@@ -307,6 +326,9 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
                 .Margin(20)
         ]).HAlign(HorizontalAlignment.Stretch).MinWidth(0).Set(control =>
         {
+            if (window?.NativeWindow is { } mainWindow)
+                CompactSearchWindowController.Update(mainWindow, apps.Value, _viewHistory.MostViewed(apps.Value), busy.Value ? null : Select, _viewHistory,
+                    selected.Value?.FullName, inspecting.Value);
             if (control.Tag as string == "responsive-explorer") return;
             control.Tag = "responsive-explorer";
             XamlRoot? observedRoot = null;

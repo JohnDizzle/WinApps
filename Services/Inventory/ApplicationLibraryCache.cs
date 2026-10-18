@@ -19,7 +19,7 @@ public sealed class ApplicationLibraryCache
             using var stream = File.OpenRead(path);
             if (stream.Length > 16 * 1024 * 1024) return null;
             var snapshot = JsonSerializer.Deserialize<Snapshot>(stream);
-            return snapshot is { SchemaVersion: 4, Apps: not null } && snapshot.Apps.All(app =>
+            return snapshot is { SchemaVersion: 5, Apps: not null } && snapshot.Apps.All(app =>
                 app is not null && app.Name is not null && app.Publisher is not null &&
                 app.FamilyName is not null && app.FullName is not null && app.DataPath is not null &&
                 app.InstallPath is not null && app.Source is not null) ? snapshot : null;
@@ -33,7 +33,7 @@ public sealed class ApplicationLibraryCache
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
-            File.WriteAllText(temporary, JsonSerializer.Serialize(new Snapshot(4, DateTimeOffset.Now, apps.ToArray())));
+            File.WriteAllText(temporary, JsonSerializer.Serialize(new Snapshot(5, DateTimeOffset.Now, apps.ToArray())));
             File.Move(temporary, path, overwrite: true);
             return null;
         }

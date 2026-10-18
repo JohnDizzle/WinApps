@@ -65,7 +65,9 @@ public sealed class AppInventory
         var registered = new DesktopAppCatalog().Scan();
         var shortcuts = new StartMenuCatalog().Scan();
         var merged = DesktopAppMerge.Merge(registered.Apps, shortcuts.Apps);
-        var desktop = new PackageScan(merged, registered.Skipped + shortcuts.Skipped);
+        var appPaths = new AppPathsCatalog().Scan();
+        merged = DesktopAppMerge.MergeAppPaths(merged, appPaths.Apps);
+        var desktop = new PackageScan(merged, registered.Skipped + shortcuts.Skipped + appPaths.Skipped);
         try
         {
             var packaged = new WinApps.Services.Packages.PackageCatalog().Scan();

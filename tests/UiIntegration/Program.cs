@@ -49,6 +49,118 @@ public sealed partial class ChecksApplication : Application
     {
         try
         {
+            if (Environment.GetCommandLineArgs().Contains("--compact-activity-checks"))
+            {
+                void Expect(bool condition, string message)
+                {
+                    if (!condition) throw new InvalidOperationException(message);
+                }
+                var fixture = new InstalledApp("Activity fixture", "", "activity-fixture", "", "1", "", "");
+                var label = new TextBlock();
+                var badge = new Border { Child = label };
+                var tileButton = new Button { Content = badge };
+                var tile = new CompactActivityTile(fixture, tileButton, badge, label);
+                var activityFirst = new WinApps.Services.Inventory.RunningApplication(123, 1, fixture.Name, "First window", "fixture.exe", 0, 1, WindowHandle: 1);
+                var activitySecond = activityFirst with { Id = 124, Title = "Second window" };
+                tile.Update([activityFirst, activitySecond]);
+                Expect(label.Text == "2" && badge.Visibility == Visibility.Visible, "Running instances must appear in the compact badge.");
+                Expect((ToolTipService.GetToolTip(badge) as string)?.Contains("PID 124") == true,
+                    "Instance tooltip must include window titles and process IDs.");
+                await new UiDelay(1800);
+                Expect(badge.Background is null && badge.Visibility == Visibility.Visible && tileButton.BorderBrush is not null,
+                    "Start feedback must preserve the badge background and retain the active outline.");
+                tile.Update([]);
+                await new UiDelay(1800);
+                Expect(badge.Visibility == Visibility.Collapsed, "The final closed instance must settle back to normal.");
+                tile.Stop();
+                tile.Update([activityFirst]);
+                Expect(label.Text == "0", "Stopped tiles must ignore late updates.");
+                var companion = new Window { Content = new Grid() };
+                var activity = new CompactAppActivity(companion, () => [], () => [tile]);
+                activity.Start();
+                activity.Dispose();
+                companion.Close();
+                activity.Refresh();
+                await new UiDelay(2200);
+                Console.WriteLine("Passed compact activity badge, tooltip, transition, and closed-window callback checks.");
+                Environment.ExitCode = 0;
+                return;
+            }
+            if (Environment.GetCommandLineArgs().Contains("--compact-search-checks"))
+            {
+                // Build and exercise the companion without activating either test window.
+                var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+                var type = typeof(CompactSearchWindowController);
+                var controller = Activator.CreateInstance(type, flags, null, [_window], null)!;
+                type.GetMethod("EnsureWindow", flags)!.Invoke(controller, null);
+                var companion = (Window)type.GetField("_searchWindow", flags)!.GetValue(controller)!;
+                var content = (Grid)companion.Content;
+                var titleBar = (TitleBar)content.FindName("CompactTitleBar");
+                if (!companion.ExtendsContentIntoTitleBar || titleBar.RightHeader is not null || titleBar.LeftHeader is not Border { Child: Microsoft.UI.Xaml.Controls.Image })
+                    throw new InvalidOperationException("Compact mode must extend its themed title bar, show the app icon without a duplicate return control.");
+                var search = (TextBox)content.FindName("Search");
+                var badges = (Grid)content.FindName("Badges");
+                var status = (TextBlock)content.FindName("Status");
+                var alpha = new InstalledApp("Alpha browser with a long wrapping name", "family.alpha", "alpha", "Publisher A", "", "", "");
+                var beta = alpha with { Name = "Beta editor", FamilyName = "family.beta", FullName = "beta", Publisher = "Publisher B" };
+                type.GetField("_apps", flags)!.SetValue(controller, new[] { alpha, beta });
+                type.GetField("_mostViewed", flags)!.SetValue(controller, new[] { beta });
+                type.GetField("_select", flags)!.SetValue(controller, (Action<InstalledApp>)(_ => { }));
+                type.GetMethod("RefreshSuggestions", flags)!.Invoke(controller, null);
+                if (!status.Text.StartsWith("Suggested for you") || badges.Children.Count != 1)
+                    throw new InvalidOperationException("Empty search must show most-viewed app badges.");
+                search.Text = "publisher a";
+                type.GetMethod("RefreshSuggestions", flags)!.Invoke(controller, null);
+                await new UiDelay(80);
+                if (badges.Children.Count != 1 || !Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(badges.Children[0]).Contains(alpha.Name))
+                    throw new InvalidOperationException("Search must match publishers and identify the app badge.");
+                if (((Button)badges.Children[0]).ContextFlyout is not Microsoft.UI.Xaml.Controls.MenuFlyout)
+                    throw new InvalidOperationException("Compact suggestions must expose the shared app action menu.");
+                var name = Descendants((UIElement)badges.Children[0]).OfType<TextBlock>().Single(text => text.Text == alpha.Name);
+                if (name.TextWrapping != TextWrapping.Wrap || name.MaxLines != 0 || ((Button)badges.Children[0]).Padding.Left < 8)
+                    throw new InvalidOperationException("Suggestion badges must wrap app names with padding.");
+                search.Text = "no such app";
+                type.GetMethod("RefreshSuggestions", flags)!.Invoke(controller, null);
+                await new UiDelay(80);
+                if (badges.Children.Count != 0 || status.Text != "No matching applications.")
+                    throw new InvalidOperationException("Unmatched searches must clear stale suggestions.");
+                search.Text = "family.beta";
+                type.GetMethod("RefreshSuggestions", flags)!.Invoke(controller, null);
+                await new UiDelay(80);
+                if (badges.Children.Count != 1)
+                    throw new InvalidOperationException("Search must match package family names.");
+                if (companion.AppWindow.IsShownInSwitchers)
+                    throw new InvalidOperationException("The companion must not create a second taskbar entry.");
+                if (content.FindName("OpenFull") is not Microsoft.UI.Xaml.Controls.Button || content.FindName("QuitApp") is not null)
+                    throw new InvalidOperationException("Compact view must offer one footer return action and use the window close button for quit.");
+                type.GetField("_activeKeys", flags)!.SetValue(controller, new HashSet<string> { alpha.FullName });
+                search.Text = "";
+                type.GetMethod("RefreshSuggestions", flags)!.Invoke(controller, null);
+                await new UiDelay(80);
+                if (badges.Children.Count != 2 || !Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(badges.Children[0]).Contains(alpha.Name))
+                    throw new InvalidOperationException("Running installed apps outside the learned shortlist must appear before suggestions.");
+                var overviewRequests = 0;
+                type.GetField("_select", flags)!.SetValue(controller, (Action<InstalledApp>)(_ => overviewRequests++));
+                type.GetMethod("Open", flags)!.Invoke(controller, [beta]);
+                type.GetMethod("Open", flags)!.Invoke(controller, [beta]);
+                if (overviewRequests != 1 || badges.Children.Count != 6 || !status.Text.StartsWith("Loading Beta") || search.IsEnabled ||
+                    !Descendants((UIElement)badges.Children[0]).OfType<ProgressRing>().Any(ring => ring.IsActive))
+                    throw new InvalidOperationException("Compact overview opening must show progress and block duplicate requests until ready.");
+                type.GetMethod("MainClosed", flags)!.Invoke(controller, [_window, null]);
+                type.GetMethod("MainClosed", flags)!.Invoke(controller, [_window, null]);
+                if (type.GetField("_searchWindow", flags)!.GetValue(controller) is not null || badges.Children.Count != 0)
+                    throw new InvalidOperationException("Shutdown must release companion window references and tile assets, and tolerate repeated cleanup.");
+                if (type.GetField("_pendingOverview", flags)!.GetValue(controller) is not null)
+                    throw new InvalidOperationException("Shutdown must clear pending overview requests.");
+                var placementTimer = (DispatcherTimer)type.GetField("_placementTimer", flags)!.GetValue(controller)!;
+                if (placementTimer.IsEnabled)
+                    throw new InvalidOperationException("Shutdown must stop placement callbacks before window destruction.");
+                search.Text = "late callback";
+                await new UiDelay(2200);
+                Console.WriteLine("Passed compact search native resource, filtering, wrapping, padding, and close checks.");
+                File.AppendAllText("artifacts/ui-checks.log", "Passed compact search native checks.\n");
+                return;
+            }
             if (Environment.GetCommandLineArgs().Contains("--launch-diagnostics"))
             {
                 var registered = new WinApps.Services.Inventory.DesktopAppCatalog().Scan();

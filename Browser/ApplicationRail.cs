@@ -2,6 +2,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
+using Microsoft.UI.Reactor.Layout;
 using WinApps.Models;
 using WinApps.Services.Inventory;
 using WinApps.Services.Packages;
@@ -13,7 +14,8 @@ namespace WinApps.Browser;
 
 internal sealed record ApplicationRailProps(InstalledApp[] Apps, InstalledApp? Selected, AppDataInventory? Inventory,
     string View, bool Busy, Action<InstalledApp> OnSelect, Action OnUnselect, Action OnRefresh,
-    Action<AppDataFile> OnPreviewFile, Action<AppDataFile> OnOpenFile, Action<string> OnView, bool Loading = false, bool Compact = false);
+    Action<AppDataFile> OnPreviewFile, Action<AppDataFile> OnOpenFile, Action<string> OnView, bool Loading = false, bool Compact = false, InstalledApp[]? MostViewed = null,
+    Action<InstalledApp>? OnSuggestionSelect = null, Action<InstalledApp[]>? OnSuggestionsShown = null, bool Visible = true, bool LearningEnabled = false);
 
 internal sealed class ApplicationRail : Component<ApplicationRailProps>
 {
@@ -32,7 +34,9 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
     {
         var letter = UseState("All");
         var search = UseState("");
-        var appsListOpen = UseState(true);
+        var browsing = UseState(false);
+        // Alphabet navigation opens only through the Browse all apps disclosure.
+        var appsListOpen = UseState(false);
         var appFilesOpen = UseState(false);
         var expandedAreas = UseState(Array.Empty<string>());
         var apps = Props.Apps;
@@ -53,9 +57,10 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
         var filtering = !string.IsNullOrWhiteSpace(search.Value);
         void Filter(string value)
         {
+            browsing.Set(false);
             search.Set(value);
             letter.Set("All");
-            appsListOpen.Set(string.IsNullOrWhiteSpace(value));
+            appsListOpen.Set(false);
         }
         UseEffect(() =>
         {
@@ -65,9 +70,8 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                 if (search.Value.Length > 0) search.Set("");
                 if (letter.Value != "All") letter.Set("All");
             }
-            var showList = Props.Selected is null;
             var showFiles = Props.Selected is not null && Props.Inventory is not null;
-            if (appsListOpen.Value != showList) appsListOpen.Set(showList);
+            if (appsListOpen.Value) appsListOpen.Set(false);
             if (appFilesOpen.Value != showFiles) appFilesOpen.Set(showFiles);
             if (expandedAreas.Value.Length > 0) expandedAreas.Set(Array.Empty<string>());
         }, Props.Selected?.FullName);
@@ -109,7 +113,7 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
         void Scan()
         {
             _resetScroll = true;
-            letter.Set("All"); search.Set(""); appsListOpen.Set(true); appFilesOpen.Set(false);
+            letter.Set("All"); search.Set(""); appsListOpen.Set(false); appFilesOpen.Set(false);
             Props.OnRefresh();
         }
         ButtonElement FilePreviewButton(AppDataFile item, bool showDetails = false) => BrowserUi.FilePreviewButton(item, Props.OnPreviewFile, busy, showDetails);
@@ -128,6 +132,31 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
             .Concat(selected is null ? [] : apps.Where(app => app.FullName == selected.FullName)).DistinctBy(app => app.FullName)
             .OrderBy(app => app.Name, StringComparer.OrdinalIgnoreCase).ToArray();
         var letters = new[] { "All", "#" }.Concat(Enumerable.Range('A', 26).Select(code => ((char)code).ToString())).ToArray();
+        var mostViewed = Props.MostViewed ?? [];
+        var suggestions = filtering ? matches : mostViewed.Length > 0 ? mostViewed : apps
+            .OrderBy(app => app.Name, StringComparer.OrdinalIgnoreCase).Take(6).ToArray();
+        var suggestionTitle = filtering ? $"Matches · {matches.Length} applications" : mostViewed.Length > 0 ? "Suggested for you" : "Suggested apps";
+        var showSuggestions = !browsing.Value && (filtering || letter.Value == "All" && selected is null);
+        UseEffect(() =>
+        {
+            if (Props.LearningEnabled && Props.Visible && showSuggestions && !filtering && suggestions.Length > 0) Props.OnSuggestionsShown?.Invoke(suggestions);
+        }, Props.LearningEnabled, Props.Visible, showSuggestions, filtering, string.Join("|", suggestions.Select(app => app.FullName)));
+        var suggestionBadges = (FlexRow(suggestions.Select(app =>
+            GlassButton(Button(HStack(8,
+                AppIcon(app, 24),
+                TextBlock(app.Name).TextWrapping().Width(94)
+                    .Set(control => { control.MaxLines = 2; control.TextTrimming = TextTrimming.CharacterEllipsis; })),
+                () => (filtering ? Props.OnSelect : Props.OnSuggestionSelect ?? Props.OnSelect)(app)))
+                .Width(144).Height(64).Padding(8).CornerRadius(10).IsEnabled(!busy)
+                .AutomationName($"View {app.Name}")
+                .Set(control =>
+                {
+                    Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, $"Open {app.Name} overview");
+                    control.ContextFlyout = CreateApplicationContextFlyout(app, Report, LaunchFromMenu,
+                        () => (filtering ? Props.OnSelect : Props.OnSuggestionSelect ?? Props.OnSelect)(app));
+                })
+                .WithKey($"suggestion-{app.FullName}")).ToArray()) with
+            { Wrap = FlexWrap.Wrap, ColumnGap = 8, RowGap = 8 }).HAlign(HorizontalAlignment.Stretch);
         var keyboard = ScrollView(VStack(6, letters.Chunk(4).Select((row, index) => HStack(6, row.Select(key =>
             ToggleButton(key, letter.Value == key, enabled => { if (enabled) letter.Set(key); })
                 .Width(64).Height(40).Padding(0).AutomationName($"Show {key} applications")
@@ -184,8 +213,8 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                 : Disclosure("App files", fileTree, appFilesOpen.Value, expanded =>
                     { appFilesOpen.Set(expanded); if (expanded) appsListOpen.Set(false); })
                     .AutomationName($"Files for {app.Name}")
-                : Text(""))
-        ).HAlign(HorizontalAlignment.Stretch).Padding(12))
+                : Text("")).IsVisible(app.ConsolePath is null && !Props.Compact && app.FullName == selected?.FullName)
+        ).HAlign(HorizontalAlignment.Stretch).Padding(8))
             .WithBorder(app.FullName == selected?.FullName ? Theme.Ref("TextFillColorSecondaryBrush") : Theme.Ref("ControlFillColorTransparentBrush"))
             .CornerRadius(12).Margin(left: 4, top: 2, right: 8, bottom: 2).HAlign(HorizontalAlignment.Stretch)
             .Set(control => control.ContextFlyout = CreateApplicationContextFlyout(app, Report, LaunchFromMenu))
@@ -262,14 +291,40 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
 
         var navigation = Border(
             (FlexColumn(
-                HStack(10, Icon(FontIcon("\uE71D", "Segoe Fluent Icons")).Width(24).Height(24), TextBlock("Applications").FontSize(24).SemiBold()),
-                TextBlock($"{apps.Length} apps in your library").Foreground(Theme.SecondaryText),
-                TextBox(search.Value, Filter, placeholderText: "Search your library").AutomationName("Search applications"),
-                ActionButton(busy ? "Working…" : "Refresh applications", Scan).AutomationName("Refresh applications").IsEnabled(!busy),
-                Slot("unselect", selected is not null ? ActionButton("Clear selection", () => { }).WithKey("clear-application-selection").IsEnabled(!busy).Set(AttachClearButton) : Text("")),
+                FlexRow(
+                    HStack(10, Icon(FontIcon("\uE71D", "Segoe Fluent Icons")).Width(24).Height(24),
+                        TextBlock("Applications").FontSize(24).SemiBold()).Flex(grow: 1, basis: 0),
+                    HStack(6,
+                        GlassButton(Button(FluentGlyph("\uE72C", 16), Scan))
+                            .Width(32).Height(32).Padding(6).CornerRadius(8)
+                            .AutomationName(busy ? "Refreshing applications" : "Refresh applications").IsEnabled(!busy)
+                            .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Refresh applications")),
+                        GlassButton(Button(FluentGlyph("\uE711", 16), () => { }))
+                            .WithKey("clear-application-selection").Width(32).Height(32).Padding(6).CornerRadius(8)
+                            .AutomationName("Clear selection").IsEnabled(!busy).IsVisible(selected is not null)
+                            .Set(AttachClearButton)
+                            .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Clear selection")))
+                        .Margin(left: 8).Flex(shrink: 0)
+                ).Flex(shrink: 0),
+                TextBlock($"{apps.Length} apps in your library").Foreground(Theme.SecondaryText).Flex(shrink: 0),
+                TextBox(search.Value, Filter, placeholderText: "Search your library").AutomationName("Search applications").Flex(shrink: 0),
+                (FlexColumn(
+                    TextBlock(suggestionTitle).SemiBold().Flex(shrink: 0),
+                    ScrollView(suggestionBadges.FlexPadding(4))
+                        .AutomationName("Application suggestions scroll area")
+                        .Set(control =>
+                        {
+                            control.ContentOrientation = Microsoft.UI.Xaml.Controls.ScrollingContentOrientation.Vertical;
+                            control.VerticalScrollMode = Microsoft.UI.Xaml.Controls.ScrollingScrollMode.Enabled;
+                            control.VerticalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollingScrollBarVisibility.Auto;
+                            control.HorizontalScrollMode = Microsoft.UI.Xaml.Controls.ScrollingScrollMode.Disabled;
+                            control.HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollingScrollBarVisibility.Hidden;
+                        }).Height(216).MinHeight(0).Flex(shrink: 0)
+                ) with { RowGap = 8 })
+                    .WithKey("suggested-apps").MinHeight(0).IsVisible(showSuggestions && suggestions.Length > 0).Flex(shrink: 0),
                 Disclosure("Browse all apps", keyboard, !filtering && appsListOpen.Value, expanded =>
                     { appsListOpen.Set(expanded); if (expanded) appFilesOpen.Set(false); })
-                    .AutomationName("Browse all apps").IsEnabled(!filtering),
+                    .AutomationName("Browse all apps").IsEnabled(!filtering).Flex(shrink: 0),
                 ScrollView(VStack(14,
                 TextBlock($"{(filtering ? "Matches" : letter.Value)} · {visibleApps.Length} applications").Foreground(Theme.Ref("TextFillColorPrimaryBrush")).SemiBold(),
                 appList))
@@ -318,26 +373,68 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                         control.HorizontalScrollMode = Microsoft.UI.Xaml.Controls.ScrollingScrollMode.Disabled;
                         control.HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollingScrollBarVisibility.Hidden;
                     }).MinHeight(0).Flex(grow: 1, basis: 0)
-            ) with { RowGap = 14 }).FlexPadding(24)
+            ) with { RowGap = 12 }).FlexPadding(24)
         ).Background(Theme.LayerFill).WithBorder(Theme.CardStroke).CornerRadius(12)
             .Width(400).Margin(left: 16, top: 12, right: 0, bottom: 16).Flex(shrink: 0);
 
         if (Props.Compact)
+        {
+            // A popup keeps alphabet navigation from consuming the dashboard's height.
+            var browse = Button($"Browse · {letter.Value}", () => { })
+                .AutomationName("Browse all apps").Height(40).IsEnabled(!filtering)
+                .Set(control =>
+                {
+                    var grid = new Microsoft.UI.Xaml.Controls.Grid { ColumnSpacing = 6, RowSpacing = 6 };
+                    for (var column = 0; column < 7; column++)
+                        grid.ColumnDefinitions.Add(new Microsoft.UI.Xaml.Controls.ColumnDefinition { Width = new GridLength(40) });
+                    for (var row = 0; row < 4; row++)
+                        grid.RowDefinitions.Add(new Microsoft.UI.Xaml.Controls.RowDefinition { Height = new GridLength(40) });
+                    var flyout = new Microsoft.UI.Xaml.Controls.Flyout { Content = grid };
+                    for (var index = 0; index < letters.Length; index++)
+                    {
+                        var key = letters[index];
+                        var button = new Microsoft.UI.Xaml.Controls.Primitives.ToggleButton
+                        {
+                            Content = key, Width = 40, Height = 40, Padding = new Thickness(0),
+                            CornerRadius = new CornerRadius(8), IsChecked = letter.Value == key,
+                            IsEnabled = key == "All" || matches.Any(app => Initial(app) == key)
+                        };
+                        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, $"Show {key} applications");
+                        button.Click += (_, _) => { flyout.Hide(); browsing.Set(true); letter.Set(key); };
+                        Microsoft.UI.Xaml.Controls.Grid.SetColumn(button, index % 7);
+                        Microsoft.UI.Xaml.Controls.Grid.SetRow(button, index / 7);
+                        grid.Children.Add(button);
+                    }
+                    control.Flyout = flyout;
+                });
             return Border(VStack(8,
-                TextBlock("Applications").SemiBold(),
-                TextBox(search.Value, Filter, placeholderText: "Search your library").AutomationName("Search applications"),
-                Disclosure("Browse all apps", keyboard, !filtering && appsListOpen.Value,
-                    expanded => appsListOpen.Set(expanded)).AutomationName("Browse all apps").IsEnabled(!filtering),
-                TextBlock($"{(filtering ? "Matches" : letter.Value)} · {visibleApps.Length} applications")
-                    .FontSize(12).Foreground(Theme.SecondaryText),
-                appList.Height(160)))
+                FlexRow(
+                    TextBox(search.Value, Filter, placeholderText: "Search your library")
+                        .AutomationName("Search applications").MinWidth(0).Flex(grow: 1, basis: 0),
+                    browse.Margin(left: 8).Flex(shrink: 0)),
+                FlexRow(
+                    TextBlock(showSuggestions ? suggestionTitle : $"{(filtering ? "Matches" : letter.Value)} · {visibleApps.Length} applications")
+                        .FontSize(12).Foreground(Theme.SecondaryText).Flex(grow: 1, basis: 0),
+                    Button(mostViewed.Length > 0 ? "Most viewed" : "Suggestions", () => { browsing.Set(false); letter.Set("All"); search.Set(""); })
+                        .AutomationName("Show app suggestions").IsVisible(!showSuggestions && selected is null)
+                        .Padding(4).Flex(shrink: 0)),
+                Slot("compact-apps", showSuggestions
+                    ? ScrollView(suggestionBadges.FlexPadding(4)).Height(144)
+                        .Set(control =>
+                        {
+                            control.ContentOrientation = Microsoft.UI.Xaml.Controls.ScrollingContentOrientation.Vertical;
+                            control.HorizontalScrollMode = Microsoft.UI.Xaml.Controls.ScrollingScrollMode.Disabled;
+                            control.HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollingScrollBarVisibility.Hidden;
+                        })
+                    : appList.Height(128))))
                 .Padding(12).Background(Theme.LayerFill).WithBorder(Theme.CardStroke).CornerRadius(12)
                 .Margin(12).Flex(shrink: 0);
+        }
         return navigation;
     }
 
-    private static Microsoft.UI.Xaml.Controls.MenuFlyout CreateApplicationContextFlyout(InstalledApp app,
-        Action<string> report, Action<InstalledApp, bool> launch)
+    internal static Microsoft.UI.Xaml.Controls.MenuFlyout CreateApplicationContextFlyout(InstalledApp app,
+        Action<string> report, Action<InstalledApp, bool> launch, Action? view = null)
     {
         var menu = new Microsoft.UI.Xaml.Controls.MenuFlyout();
         CancellationTokenSource? instanceScan = null;
@@ -354,6 +451,13 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
             instanceScan = new CancellationTokenSource();
             var token = instanceScan.Token;
             menu.Items.Clear();
+            if (view is not null)
+            {
+                var overview = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem { Text = "View app overview", Icon = MenuIcon("\uE8A5") };
+                overview.Click += (_, _) => view();
+                menu.Items.Add(overview);
+                menu.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
+            }
             var switchTo = new Microsoft.UI.Xaml.Controls.MenuFlyoutSubItem
             {
                 Text = "Checking instances…",

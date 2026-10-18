@@ -34,6 +34,32 @@ string Preview(string name, string content, Encoding? encoding = null)
 
 try
 {
+    var historyPath = Path.Combine(root, "app-views.json");
+    var history = new ApplicationViewHistory(historyPath);
+    Check(!history.Policy.Enabled, "Interaction logging must default to off for every user.");
+    history.Record(new InstalledApp("Untracked", "", "untracked", "", "", "", ""));
+    Check(!File.Exists(historyPath), "Logging while disabled must not create an interaction cache.");
+    history.SetPolicy(history.Policy with { Enabled = true });
+    var firstViewed = new InstalledApp("Alpha", "family.alpha", "alpha_1", "", "1", "", "");
+    var secondViewed = firstViewed with { Name = "Beta", FamilyName = "family.beta", FullName = "beta_1" };
+    Check(history.MostViewed([firstViewed, secondViewed]).Length == 0,
+        "An empty view history must not claim apps have been viewed.");
+    history.Record(firstViewed);
+    history.Record(secondViewed);
+    history.Record(secondViewed);
+    var restoredHistory = new ApplicationViewHistory(historyPath);
+    Check(restoredHistory.MostViewed([firstViewed, secondViewed]).SequenceEqual([secondViewed, firstViewed]),
+        "View frequency must survive reload and rank the most viewed app first.");
+    var updatedViewed = secondViewed with { FullName = "beta_2", Version = "2" };
+    Check(restoredHistory.MostViewed([firstViewed, updatedViewed], 1).Single() == updatedViewed,
+        "Package updates must retain view counts through their package family.");
+    Check(restoredHistory.MostViewed([firstViewed]).SequenceEqual([firstViewed]),
+        "Suggestions must omit applications no longer in the library.");
+    File.WriteAllText(historyPath, "{invalid json");
+    Check(new ApplicationViewHistory(historyPath).MostViewed([firstViewed]).Length == 0,
+        "Corrupt history must not prevent application browsing.");
+    new ApplicationViewHistory(root).Record(firstViewed);
+
     Check(AdministrativeTools.ConsoleTarget(@"C:\Windows\System32\services.msc", "") == @"C:\Windows\System32\services.msc",
         "Direct MMC console shortcuts must be discoverable.");
     Check(AdministrativeTools.ConsoleTarget(@"C:\Windows\System32\mmc.exe", "\"C:\\Windows\\System32\\compmgmt.msc\" /s") == @"C:\Windows\System32\compmgmt.msc",
@@ -42,12 +68,86 @@ try
         "Relative MMC consoles must resolve beside the host.");
     Check(AdministrativeTools.ConsoleTarget(@"C:\Apps\editor.exe", "notes.msc") is null,
         "Unrelated executables must not be classified as MMC consoles.");
+    var learningDay = new DateOnly(2026, 10, 1);
+    var dailyPath = Path.Combine(root, "daily-app-views.json");
+    var dailyHistory = new ApplicationViewHistory(dailyPath, () => learningDay);
+    dailyHistory.SetPolicy(dailyHistory.Policy with { Enabled = true });
+    for (var count = 0; count < 100; count++) dailyHistory.Record(firstViewed);
+    var dailySaved = JsonSerializer.Deserialize<ApplicationViewHistory.Snapshot>(File.ReadAllText(dailyPath))!;
+    Check(dailySaved.Apps.Single().Views == 20, "Repeated daily views must be capped by policy.");
+    learningDay = learningDay.AddDays(21);
+    dailyHistory.Record(secondViewed);
+    dailyHistory.Record(secondViewed);
+    Check(dailyHistory.MostViewed([firstViewed, secondViewed]).First() == secondViewed,
+        "Recent app choices must outrank a capped burst of old views.");
+    dailyHistory.RecordExposure([firstViewed, secondViewed], "test");
+    dailyHistory.RecordHit(secondViewed, "test");
+    dailyHistory.RecordHit(secondViewed, "test");
+    dailyHistory.RecordHit(firstViewed, "unseen-surface");
+    Check(dailyHistory.Metrics() is { Shown: 1, Hits: 1 },
+        "A displayed suggestion set must receive at most one verified hit.");
+    dailyHistory.RecordExposure([firstViewed], "test");
+    dailyHistory.RecordHit(secondViewed, "test");
+    Check(dailyHistory.Metrics() is { Shown: 2, Hits: 1 },
+        "Choosing an app outside the displayed set must not inflate hit rate.");
+    var dailyReloaded = new ApplicationViewHistory(dailyPath, () => learningDay);
+    Check(dailyReloaded.Metrics() is { Shown: 2, Hits: 1 } && dailyReloaded.Metrics().HitRate == 0.5,
+        "Daily impressions, hits, and hit rate must survive reload.");
+    dailyHistory.SetPolicy(dailyHistory.Policy with { Enabled = false });
+    dailyHistory.Record(firstViewed);
+    dailyHistory.RecordExposure([firstViewed], "test");
+    dailyHistory.RecordHit(firstViewed, "test");
+    Check(dailyHistory.MostViewed([firstViewed, secondViewed]).Length == 0 && dailyHistory.Metrics() is { Shown: 2, Hits: 1 },
+        "Pausing learning must stop ranking and interaction tracking.");
+    Check(!new ApplicationViewHistory(dailyPath, () => learningDay).Policy.Enabled,
+        "The learning preference must persist between sessions.");
+    dailyHistory.SetPolicy(dailyHistory.Policy with { Enabled = true });
+    learningDay = learningDay.AddDays(31);
+    Check(dailyHistory.MostViewed([firstViewed, secondViewed]).Length == 0 && dailyHistory.Metrics() is { Shown: 0, Hits: 0 },
+        "History and hit metrics must expire after the retention window.");
+    dailyHistory.Record(firstViewed);
+    dailyHistory.Clear();
+    Check(new ApplicationViewHistory(dailyPath, () => learningDay).MostViewed([firstViewed]).Length == 0,
+        "Clearing history must remove learned rankings from disk.");
+    dailyHistory.SetPolicy(new(true, -1, double.NaN, int.MaxValue));
+    Check(dailyHistory.Policy is { RetentionDays: 1, HalfLifeDays: 7, DailyViewLimit: 100 },
+        "Suggestion policy values must be bounded before use.");
+
+    var compactPath = Path.Combine(root, "compact-window.json");
+    var compactStore = new CompactWindowStore(compactPath);
+    Check(compactStore.Load() is { RememberPrevious: true, Placement: null }, "Compact view must remember previous placement by default.");
+    Check(!compactStore.Load().StartInCompactMode, "Default startup must open the main window.");
+    compactStore.SetStartInCompactMode(true);
+    Check(new CompactWindowStore(compactPath).Load().StartInCompactMode, "Compact startup preference must survive restart.");
+    var compactPlacement = new WindowPlacement(200, 150, 600, 408);
+    Check(compactStore.SavePlacement(compactPlacement) is null && new CompactWindowStore(compactPath).Load().Placement == compactPlacement,
+        "Compact position and size must survive a restart.");
+    Check(compactStore.Load().StartInCompactMode, "Saving compact placement must retain the startup preference.");
+    compactStore.SetRememberPrevious(false);
+    compactStore.SavePlacement(compactPlacement with { X = 999 });
+    Check(new CompactWindowStore(compactPath).Load() is { RememberPrevious: false } disabledCompact && disabledCompact.Placement == compactPlacement,
+        "Turning off remember must persist and stop overwriting the previous placement.");
+    compactStore.SetRememberPrevious(true);
+    compactStore.SetStartInCompactMode(false);
+    Check(compactStore.Load().Placement == compactPlacement && compactStore.Load().RememberPrevious, "Changing startup mode must preserve saved size and position preferences.");
+    var fittedCompact = CompactWindowStore.Fit(new WindowPlacement(9999, 9999, 600, 408), 0, 0, 1280, 720);
+    Check(fittedCompact is { X: 680, Y: 312, Width: 600, Height: 408 }, "An unavailable monitor must not leave compact view off screen.");
+    var tinyCompact = CompactWindowStore.Fit(new WindowPlacement(-50, -50, 900, 800), 0, 0, 300, 200);
+    Check(tinyCompact is { X: 0, Y: 0, Width: 300, Height: 200 }, "Compact view must fit a work area smaller than its usual minimum.");
+    File.WriteAllText(compactPath, "invalid json");
+    Check(compactStore.Load() is { RememberPrevious: true, Placement: null }, "Corrupt compact settings must recover to the default preference.");
+
     var officeSuite = new InstalledApp("Microsoft Office", "", "registry:office", "Microsoft", "16", "", @"C:\Office");
     var excel = officeSuite with { Name = "Excel", FullName = "StartMenu:excel", Source = "Desktop · Start Menu" };
     var word = excel with { Name = "Word", FullName = "StartMenu:word" };
     var officeApps = DesktopAppMerge.Merge([officeSuite], [excel, word]);
     Check(officeApps.Count == 3 && officeApps.Contains(excel) && officeApps.Contains(word),
         "Office suite and individual applications sharing a folder must remain visible.");
+    var appPathExcel = excel with { Name = "Microsoft Excel", FullName = "AppPaths:excel", ExecutablePath = @"C:\Office\EXCEL.EXE" };
+    Check(DesktopAppMerge.MergeAppPaths([officeSuite], [appPathExcel]).Count == 2,
+        "An App Paths registration must add Excel separately from its Office suite.");
+    Check(DesktopAppMerge.MergeAppPaths([excel with { ExecutablePath = @"C:\Office\excel.exe" }], [appPathExcel]).Count == 1,
+        "App Paths must not duplicate an executable already discovered through a shortcut.");
     var registeredExcel = excel with { FullName = "registry:excel", IconUri = null };
     Check(DesktopAppMerge.Merge([registeredExcel], [excel]).Count == 1,
         "A matching named application in the same folder must not be duplicated.");
@@ -294,7 +394,9 @@ try
     Check(cache.Load() is null, "Corrupt cache should trigger discovery");
     File.WriteAllText(cachePath, "{\"SchemaVersion\":99,\"Apps\":[]}");
     Check(cache.Load() is null, "Unsupported cache versions should trigger discovery");
-    File.WriteAllText(cachePath, "{\"SchemaVersion\":4,\"Apps\":[null]}");
+    File.WriteAllText(cachePath, "{\"SchemaVersion\":4,\"Apps\":[]}");
+    Check(cache.Load() is null, "Older discovery caches must be rebuilt to include App Paths applications.");
+    File.WriteAllText(cachePath, "{\"SchemaVersion\":5,\"Apps\":[null]}");
     Check(cache.Load() is null, "Invalid cache entries should trigger discovery");
     Check(cache.Save([app]) is null && cache.Load()?.Apps.Length == 1, "Refresh should replace invalid cache");
     var json = Preview("valid.json", "{\"items\":[1,true,null],\"name\":\"example\"}");

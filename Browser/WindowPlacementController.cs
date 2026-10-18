@@ -15,6 +15,7 @@ internal sealed class WindowPlacementController
     private WindowPlacement _normal;
     private bool _maximized;
     private bool _adjusting;
+    private bool _closed;
 
     internal static void Attach(Window window, WindowPlacementStore? store = null)
     {
@@ -37,9 +38,10 @@ internal sealed class WindowPlacementController
         if (saved.Maximized && app.Presenter is OverlappedPresenter presenter) presenter.Maximize();
         app.Changed += Changed;
         app.Closing += Closing;
-        _timer.Tick += (_, _) => { _timer.Stop(); Save(); };
+        _timer.Tick += (_, _) => { _timer.Stop(); if (!_closed) Save(); };
         window.Closed += (_, _) =>
         {
+            _closed = true;
             _timer.Stop();
             app.Changed -= Changed;
             app.Closing -= Closing;
@@ -64,7 +66,7 @@ internal sealed class WindowPlacementController
 
     private void Changed(AppWindow app, AppWindowChangedEventArgs args)
     {
-        if (_adjusting) return;
+        if (_closed || _adjusting) return;
         if (app.Presenter is OverlappedPresenter active && active.State != OverlappedPresenterState.Minimized)
             _maximized = active.State == OverlappedPresenterState.Maximized;
         if (app.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Restored })
@@ -87,6 +89,7 @@ internal sealed class WindowPlacementController
 
     private void Save()
     {
+        if (_closed) return;
         // Minimize must not replace the last normal bounds or maximized preference.
         _store.Save(Fit(_normal) with { Maximized = _maximized });
     }

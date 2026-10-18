@@ -10,6 +10,8 @@
     <Compile Include="../../Services/Inventory/DesktopAppMerge.cs" Link="Services/DesktopAppMerge.cs" />
     <Compile Include="../../Services/Inventory/ProcessCpuSampler.cs" Link="Services/ProcessCpuSampler.cs" />
     <Compile Include="../../Services/Inventory/RunningApplicationMatch.cs" Link="Services/RunningApplicationMatch.cs" />
+    <Compile Include="../../Services/Storage/ApplicationViewHistory.cs" Link="Services/ApplicationViewHistory.cs" />
+    <Compile Include="../../Services/Storage/CompactWindowStore.cs" Link="Services/CompactWindowStore.cs" />
     <Compile Include="../../Services/Storage/WindowPlacementStore.cs" Link="Services/WindowPlacementStore.cs" />
     <Compile Include="../../Services/Storage/NotificationQueue.cs" Link="Services/NotificationQueue.cs" />
     <Compile Include="../../Models/AppDataFile.cs" Link="Models/AppDataFile.cs" />

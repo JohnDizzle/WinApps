@@ -20,8 +20,8 @@ internal sealed class WinAppsShell : Component
         _toggleNavigation = () => navigationVisible.Set(!navigationVisible.Value);
         var darkTheme = theme.Value == ElementTheme.Dark || (theme.Value == ElementTheme.Default &&
             Microsoft.UI.Xaml.Application.Current.RequestedTheme == ApplicationTheme.Dark);
-        var appearanceSettings = GlassButton(Button(FluentGlyph("\uE713", 20), () => { }))
-            .Width(40).Height(40).Padding(0).CornerRadius(10).AutomationName("Settings")
+        var appearanceSettings = GlassButton(Button(FluentGlyph("\uE713", 18), () => { }))
+            .Width(44).Height(40).Padding(8).CornerRadius(10).AutomationName("Settings")
             .Set(control =>
             {
                 Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Settings and about WinApps");
@@ -29,6 +29,15 @@ internal sealed class WinAppsShell : Component
                     () => theme.Set(darkTheme ? ElementTheme.Light : ElementTheme.Dark),
                     kind => backdrop.Set(kind));
             });
+
+        var compactIcon = Icon(PathIcon("M2,2 H4 V20 H22 V22 H2 Z M19,3.6 L20.4,5 L11.4,14 H17 V16 H8 V7 H10 V12.6 Z"))
+            .Width(16).Height(16);
+        var compactButton = GlassButton(Button(compactIcon, () =>
+            {
+                if (window?.NativeWindow is { } nativeWindow) CompactSearchWindowController.EnterCompactMode(nativeWindow);
+            }))
+            .Width(44).Height(40).Padding(8).CornerRadius(10).AutomationName("Show compact view")
+            .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Show compact view"));
 
         // Window material and theme must belong to the host root, outside recovery boundaries.
         return WindowFrame(theme.Value,
@@ -39,6 +48,7 @@ internal sealed class WinAppsShell : Component
                     if (window?.NativeWindow is { } nativeWindow)
                     {
                         WindowPlacementController.Attach(nativeWindow);
+                        CompactSearchWindowController.ConfigureAppearance(nativeWindow, theme.Value, value => theme.Set(value));
                         nativeWindow.ExtendsContentIntoTitleBar = true;
                         window.AppWindow.TitleBar.PreferredHeightOption = Microsoft.UI.Windowing.TitleBarHeightOption.Tall;
                         window.AppWindow.TitleBar.ButtonForegroundColor = darkTheme ? Microsoft.UI.Colors.White : Microsoft.UI.Colors.Black;
@@ -59,16 +69,22 @@ internal sealed class WinAppsShell : Component
                     control.Tag = "navigation-toggle";
                     control.PaneToggleRequested += (_, _) => _toggleNavigation?.Invoke();
                 })
-                .RightHeader(appearanceSettings.HAlign(HorizontalAlignment.Right))
+                .RightHeader(HStack(10, compactButton, appearanceSettings)
+                    .Margin(left: 8, top: 4, right: 8, bottom: 4).HAlign(HorizontalAlignment.Right))
                 .AutoRefreshDragRegions(true).Flex(shrink: 0),
+            FlexColumn(
+            Component<SuggestionPolicyNotice>().WithKey("suggestion-policy-notice").Flex(shrink: 0),
             ErrorBoundary(Component<PackageExplorer, PackageExplorerProps>(new(navigationVisible.Value)).WithKey($"explorer-{attempt.Value}"), error =>
                 Component<ErrorRecoveryPanel, ErrorRecoveryPanelProps>(new("WinApps couldn't display this view", error,
                     () => attempt.Set(attempt.Value + 1), null)))
-                .WithKey("app-recovery").Flex(grow: 1, basis: 0)
+                .WithKey("app-recovery").Flex(grow: 1, basis: 0)).MinHeight(0).Flex(grow: 1, basis: 0)
         , backdrop.Value);
     }
     internal static Element WindowFrame(ElementTheme theme, Element titleBar, Element content, BackdropKind backdrop = BackdropKind.MicaAlt) =>
-        FlexColumn(titleBar, content).RequestedTheme(theme).Backdrop(backdrop)
+        FlexColumn(
+            Border(titleBar).WithBorder(Theme.Ref("DividerStrokeColorDefaultBrush"))
+                .Set(control => control.BorderThickness = new Thickness(0, 0, 0, 1)).Flex(shrink: 0),
+            content).RequestedTheme(theme).Backdrop(backdrop)
             .Set(control =>
             {
                 AppearanceResources.Apply(control);

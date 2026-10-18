@@ -5,6 +5,13 @@ namespace WinApps.Services.Inventory;
 
 public static class DesktopAppMerge
 {
+    public static IReadOnlyList<InstalledApp> MergeAppPaths(IReadOnlyList<InstalledApp> existing, IReadOnlyList<InstalledApp> appPaths)
+    {
+        var known = existing.Where(app => app.ExecutablePath is not null)
+            .Select(app => app.ExecutablePath!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return Merge(existing, appPaths.Where(app => app.ExecutablePath is not null && known.Add(app.ExecutablePath)).ToArray());
+    }
+
     public static IReadOnlyList<InstalledApp> Merge(IReadOnlyList<InstalledApp> registered,
         IReadOnlyList<InstalledApp> shortcuts)
     {
