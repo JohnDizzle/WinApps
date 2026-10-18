@@ -34,14 +34,14 @@ internal sealed class SuggestionPolicyNotice : Component
     public override Element Render()
     {
         var dismissed = UseState(_acknowledged);
-        return InfoBar("Policy update", "Optional app-interaction logging is now available in Settings. It is off by default and stays on this PC.")
+        return InfoBar("Personalize app suggestions", "WinApps can use the apps you view here to improve suggestions. Turn on optional suggestion history in Settings. It is off by default, stays on this PC, and is never sent to us.")
             .Informational().IsClosable()
             .Set(control =>
             {
                 control.IsOpen = !dismissed.Value;
                 if (control.ActionButton is null)
                 {
-                    var link = new HyperlinkButton { Content = "Read policy change" };
+                    var link = new HyperlinkButton { Content = "About suggestion history" };
                     link.Click += (_, _) => OpenPolicy();
                     control.ActionButton = link;
                 }
