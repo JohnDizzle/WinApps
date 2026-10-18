@@ -134,8 +134,8 @@ internal sealed class CompactSearchWindowController
         var position = previous is not null ? new PointInt32(previous.X, previous.Y) : _mainPosition;
         var work = NativeMonitor.WorkArea(position.X, position.Y);
         var scale = NativeMonitor.WindowScale(_main);
-        var width = Math.Min(work.Width, (int)Math.Round(600 * scale));
-        var height = Math.Min(work.Height, (int)Math.Round(408 * scale));
+        var width = Math.Min(work.Width, (int)Math.Round(CompactWindowStore.DefaultWidth * scale));
+        var height = Math.Min(work.Height, (int)Math.Round(CompactWindowStore.DefaultHeight * scale));
         var placement = CompactWindowStore.Fit(previous ?? new WindowPlacement(work.X + (work.Width - width) / 2,
             work.Y + Math.Max(0, work.Height - height - (int)Math.Round(24 * scale)), width, height),
             work.X, work.Y, work.Width, work.Height);

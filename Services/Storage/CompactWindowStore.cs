@@ -7,6 +7,8 @@ public sealed record CompactWindowSettings(bool RememberPrevious = true, WindowP
 
 public sealed class CompactWindowStore(string? path = null)
 {
+    public const int DefaultWidth = 520;
+    public const int DefaultHeight = 464;
     public static CompactWindowStore Shared { get; } = new();
     private readonly string _path = path ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "WinApps", "compact-window.json");
