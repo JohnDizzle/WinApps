@@ -36,8 +36,8 @@ internal sealed class WinAppsShell : Component
             {
                 if (window?.NativeWindow is { } nativeWindow) CompactSearchWindowController.EnterCompactMode(nativeWindow);
             }))
-            .Width(44).Height(40).Padding(8).CornerRadius(10).AutomationName("Show compact view")
-            .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Show compact view"));
+            .Width(44).Height(40).Padding(8).CornerRadius(10).AutomationName("Show Mini WinApps")
+            .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Show Mini WinApps"));
 
         // Window material and theme must belong to the host root, outside recovery boundaries.
         return WindowFrame(theme.Value,
@@ -48,7 +48,7 @@ internal sealed class WinAppsShell : Component
                     if (window?.NativeWindow is { } nativeWindow)
                     {
                         WindowPlacementController.Attach(nativeWindow);
-                        CompactSearchWindowController.ConfigureAppearance(nativeWindow, theme.Value, value => theme.Set(value));
+                        CompactSearchWindowController.ConfigureAppearance(nativeWindow, theme.Value, backdrop.Value);
                         nativeWindow.ExtendsContentIntoTitleBar = true;
                         window.AppWindow.TitleBar.PreferredHeightOption = Microsoft.UI.Windowing.TitleBarHeightOption.Tall;
                         window.AppWindow.TitleBar.ButtonForegroundColor = darkTheme ? Microsoft.UI.Colors.White : Microsoft.UI.Colors.Black;

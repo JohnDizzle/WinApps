@@ -16,14 +16,15 @@ internal sealed class WindowPlacementController
     private bool _maximized;
     private bool _adjusting;
     private bool _closed;
+    private bool _maximizeOnActivation;
 
-    internal static void Attach(Window window, WindowPlacementStore? store = null)
+    internal static void Attach(Window window, WindowPlacementStore? store = null, bool deferMaximize = false)
     {
         if (Controllers.TryGetValue(window, out _)) return;
-        Controllers.Add(window, new WindowPlacementController(window, store ?? new WindowPlacementStore()));
+        Controllers.Add(window, new WindowPlacementController(window, store ?? new WindowPlacementStore(), deferMaximize));
     }
 
-    private WindowPlacementController(Window window, WindowPlacementStore store)
+    private WindowPlacementController(Window window, WindowPlacementStore store, bool deferMaximize)
     {
         _window = window;
         _store = store;
@@ -35,7 +36,9 @@ internal sealed class WindowPlacementController
         _maximized = saved.Maximized;
         SetMinimum();
         app.MoveAndResize(new RectInt32(_normal.X, _normal.Y, _normal.Width, _normal.Height));
-        if (saved.Maximized && app.Presenter is OverlappedPresenter presenter) presenter.Maximize();
+        _maximizeOnActivation = saved.Maximized && deferMaximize;
+        if (saved.Maximized && !deferMaximize && app.Presenter is OverlappedPresenter presenter) presenter.Maximize();
+        window.Activated += Activated;
         app.Changed += Changed;
         app.Closing += Closing;
         _timer.Tick += (_, _) => { _timer.Stop(); if (!_closed) Save(); };
@@ -45,8 +48,16 @@ internal sealed class WindowPlacementController
             _timer.Stop();
             app.Changed -= Changed;
             app.Closing -= Closing;
+            window.Activated -= Activated;
             Controllers.Remove(window);
         };
+    }
+
+    private void Activated(object sender, WindowActivatedEventArgs args)
+    {
+        if (!_maximizeOnActivation || args.WindowActivationState == WindowActivationState.Deactivated) return;
+        _maximizeOnActivation = false;
+        if (_window.AppWindow.Presenter is OverlappedPresenter presenter) presenter.Maximize();
     }
 
     private WindowPlacement Fit(WindowPlacement placement)
@@ -67,7 +78,7 @@ internal sealed class WindowPlacementController
     private void Changed(AppWindow app, AppWindowChangedEventArgs args)
     {
         if (_closed || _adjusting) return;
-        if (app.Presenter is OverlappedPresenter active && active.State != OverlappedPresenterState.Minimized)
+        if (!_maximizeOnActivation && app.Presenter is OverlappedPresenter active && active.State != OverlappedPresenterState.Minimized)
             _maximized = active.State == OverlappedPresenterState.Maximized;
         if (app.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Restored })
         {

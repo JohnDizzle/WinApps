@@ -43,10 +43,10 @@ internal static class SettingsFlyout
             Header = "Remember position and size",
             IsOn = CompactWindowStore.Shared.Load().RememberPrevious
         };
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(rememberCompact, "Remember compact view position and size");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(rememberCompact, "Remember Mini WinApps position and size");
         rememberCompact.Toggled += (_, _) => CompactWindowStore.Shared.SetRememberPrevious(rememberCompact.IsOn);
-        content.Children.Add(SettingsCard("Compact view", "\uE8A7",
-            ToggleRow("Start in Mini WinApps", "Use compact view when the app starts.", startCompact),
+        content.Children.Add(SettingsCard("Mini WinApps", "\uE8A7",
+            ToggleRow("Start in Mini WinApps", "Open only Mini when WinApps starts.", startCompact),
             ToggleRow("Remember position and size", "Reopen where you last left it.", rememberCompact)));
         var history = ApplicationViewHistory.Shared;
         var learning = new ToggleSwitch { Header = "Log app interactions", IsOn = history.Policy.Enabled };

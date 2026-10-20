@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using Microsoft.UI.Windowing;
+using Microsoft.UI.Reactor.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Markup;
@@ -37,22 +38,21 @@ internal sealed class CompactSearchWindowController
     private string? _exposureSignature;
     private bool _learningEnabled;
     private bool _compactMode;
-    private bool _startupPreferenceApplied;
     private ElementTheme _theme;
-    private Action<ElementTheme>? _setTheme;
+    private BackdropKind _backdrop = BackdropKind.MicaAlt;
+    private BackdropKind? _appliedBackdrop;
     private bool _wasMaximized;
     private Windows.Graphics.PointInt32 _mainPosition;
     private bool _closed;
     private bool _quitDialogOpen;
     private string? _pendingOverview;
 
-    internal static void ConfigureAppearance(Window main, ElementTheme theme, Action<ElementTheme> setTheme)
+    internal static void ConfigureAppearance(Window main, ElementTheme theme, BackdropKind backdrop)
     {
         var controller = Controllers.GetValue(main, window => new CompactSearchWindowController(window));
         controller._theme = theme;
-        controller._setTheme = setTheme;
-        if (controller._root is not null) controller._root.RequestedTheme = theme;
-        controller.ApplyCaptionTheme();
+        controller._backdrop = backdrop;
+        controller.ApplyAppearance();
     }
 
     internal static void EnterCompactMode(Window main)
@@ -60,7 +60,6 @@ internal sealed class CompactSearchWindowController
         var controller = Controllers.GetValue(main, window => new CompactSearchWindowController(window));
         controller._mainPosition = main.AppWindow.Position;
         controller._wasMaximized = main.AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Maximized };
-        controller._startupPreferenceApplied = true;
         controller._compactMode = true;
         // Keep the main window available if creating the companion fails.
         controller.Show();
@@ -87,15 +86,6 @@ internal sealed class CompactSearchWindowController
         if (changed && controller._pendingOverview is null) controller.RefreshSuggestions();
         if (controller._pendingOverview is { } pending && selectedKey == pending && !overviewLoading)
             controller.RestoreMain();
-        if (!controller._startupPreferenceApplied)
-        {
-            controller._startupPreferenceApplied = true;
-            if (controller._placementStore.Load().StartInCompactMode)
-                main.DispatcherQueue.TryEnqueue(() =>
-                {
-                    if (!controller._closed && !controller._compactMode) EnterCompactMode(main);
-                });
-        }
     }
 
     private CompactSearchWindowController(Window main)
@@ -124,8 +114,7 @@ internal sealed class CompactSearchWindowController
     {
         EnsureWindow();
         if (_root is null || _searchWindow is null || _search is null) return;
-        _root.RequestedTheme = _theme;
-        ApplyCaptionTheme();
+        ApplyAppearance();
         _exposureSignature = null;
         _search.Text = "";
         RefreshSuggestions();
@@ -233,8 +222,7 @@ internal sealed class CompactSearchWindowController
         backButton.Click += (_, _) => RestoreMain();
         _searchWindow = new Window
         {
-            Title = "Mini WinApps", Content = _root,
-            SystemBackdrop = new Microsoft.UI.Xaml.Media.DesktopAcrylicBackdrop()
+            Title = "Mini WinApps", Content = _root
         };
         _companionAppWindow = _searchWindow.AppWindow;
         _searchWindow.ExtendsContentIntoTitleBar = true;
@@ -252,7 +240,7 @@ internal sealed class CompactSearchWindowController
         _searchWindow.SetTitleBar(titleBar);
         _searchWindow.AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
         _root.ActualThemeChanged += CompactThemeChanged;
-        ApplyCaptionTheme();
+        ApplyAppearance();
         _searchWindow.AppWindow.IsShownInSwitchers = false;
         _searchWindow.AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "WinApps.ico"));
         if (_searchWindow.AppWindow.Presenter is OverlappedPresenter presenter)
@@ -355,6 +343,28 @@ internal sealed class CompactSearchWindowController
         if (!_compactMode || _searchWindow?.AppWindow is not { IsVisible: true } app
             || app.Presenter is not OverlappedPresenter { State: OverlappedPresenterState.Restored }) return;
         _placementStore.SavePlacement(new WindowPlacement(app.Position.X, app.Position.Y, app.Size.Width, app.Size.Height));
+    }
+
+    private void ApplyAppearance()
+    {
+        if (_root is null || _searchWindow is null) return;
+        _root.RequestedTheme = _theme;
+        // Each native window owns its material instance; the shell owns the selection.
+        if (_appliedBackdrop != _backdrop)
+        {
+            _searchWindow.SystemBackdrop = _backdrop switch
+            {
+                BackdropKind.Mica => new Microsoft.UI.Xaml.Media.MicaBackdrop(),
+                BackdropKind.MicaAlt => new Microsoft.UI.Xaml.Media.MicaBackdrop
+                {
+                    Kind = Microsoft.UI.Composition.SystemBackdrops.MicaKind.BaseAlt
+                },
+                BackdropKind.DesktopAcrylic => new Microsoft.UI.Xaml.Media.DesktopAcrylicBackdrop(),
+                _ => null
+            };
+            _appliedBackdrop = _backdrop;
+        }
+        ApplyCaptionTheme();
     }
 
     private void ApplyCaptionTheme()
