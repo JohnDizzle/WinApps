@@ -2,84 +2,39 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Animation;
 using WinApps.Models;
 using WinApps.Services.Inventory;
 
 namespace WinApps.Browser;
 
-internal sealed class CompactActivityTile(InstalledApp app, Button button, Border badge, TextBlock count)
+internal sealed class CompactActivityTile(InstalledApp app, Button button, Border badge, TextBlock count,
+    TextBlock status, Border indicator)
 {
     internal InstalledApp App => app;
-    private int _count = -1;
-    private DispatcherTimer? _pulse;
-    private Storyboard? _animation;
     private bool _stopped;
 
     internal void Update(RunningApplication[] instances)
     {
         if (_stopped) return;
-        var total = instances.Length;
-        var details = total == 0 ? "Not running" : $"{total} running {(total == 1 ? "instance" : "instances")}\n" +
-            string.Join("\n", instances.Select(item => $"{(string.IsNullOrWhiteSpace(item.Title) ? item.Name : item.Title)} · PID {item.Id}"));
+        var processes = instances.DistinctBy(item => item.Id).ToArray();
+        var total = processes.Length;
+        var memory = processes.Sum(item => item.Memory) / 1048576d;
+        status.Text = total > 0 ? $"Running · {memory:N0} MiB RAM" : "Suggested";
+        count.Text = $"{total} processes";
+        badge.Visibility = total > 1 ? Visibility.Visible : Visibility.Collapsed;
+        indicator.Background = new SolidColorBrush(total > 0
+            ? Windows.UI.Color.FromArgb(255, 52, 199, 89)
+            : Windows.UI.Color.FromArgb(255, 142, 142, 147));
+        var details = total == 0 ? "Not running" :
+            $"Running · {memory:N1} MiB RAM in {total} windowed {(total == 1 ? "process" : "processes")}\n" +
+            "Working set snapshot; background helper processes are not included.\n" +
+            string.Join("\n", processes.Select(item => $"{(string.IsNullOrWhiteSpace(item.Title) ? item.Name : item.Title)} · PID {item.Id}"));
         ToolTipService.SetToolTip(button, $"Open {app.Name} overview\n{details}");
         ToolTipService.SetToolTip(badge, details);
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetItemStatus(button, details);
-        if (total == _count) return;
-        var previous = _count;
-        _count = total;
-        count.Text = total.ToString();
-        _pulse?.Stop();
-        _animation?.Stop();
-        _animation = null;
-        badge.ClearValue(Border.BorderBrushProperty);
-        button.ClearValue(Control.BorderBrushProperty);
-        badge.Visibility = total > 0 ? Visibility.Visible : Visibility.Collapsed;
-        var changed = total > 0 && previous <= 0 || total == 0 && previous > 0;
-        if (new Windows.UI.ViewManagement.AccessibilitySettings().HighContrast || !changed && total == 0) return;
-        badge.Visibility = Visibility.Visible;
-        var color = total > 0 ? Windows.UI.Color.FromArgb(255, 42, 150, 83) : Windows.UI.Color.FromArgb(255, 194, 64, 64);
-        var brush = new SolidColorBrush(color);
-        button.BorderBrush = brush;
-        badge.BorderBrush = brush;
-        if (!changed) return;
-        if (new Windows.UI.ViewManagement.UISettings().AnimationsEnabled)
-        {
-            var fade = new DoubleAnimation
-            {
-                From = 0.25, To = 1, AutoReverse = true, RepeatBehavior = new RepeatBehavior(2),
-                Duration = TimeSpan.FromMilliseconds(400), EnableDependentAnimation = true
-            };
-            Storyboard.SetTarget(fade, brush);
-            Storyboard.SetTargetProperty(fade, "Opacity");
-            var storyboard = new Storyboard();
-            storyboard.Children.Add(fade);
-            storyboard.Begin();
-            _animation = storyboard;
-        }
-        _pulse = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1700) };
-        _pulse.Tick += (_, _) =>
-        {
-            if (_stopped) return;
-            _pulse?.Stop();
-            _animation?.Stop();
-            brush.Opacity = 1;
-            if (_count == 0)
-            {
-                button.ClearValue(Control.BorderBrushProperty);
-                badge.ClearValue(Border.BorderBrushProperty);
-            }
-            badge.Visibility = _count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        };
-        _pulse.Start();
     }
 
-    internal void Stop()
-    {
-        _stopped = true;
-        _pulse?.Stop(); _pulse = null;
-        _animation?.Stop(); _animation = null;
-    }
+    internal void Stop() => _stopped = true;
 }
 
 internal sealed class CompactAppActivity(Window window, Func<InstalledApp[]> apps, Func<IReadOnlyList<CompactActivityTile>> tiles,

@@ -82,6 +82,19 @@ internal sealed class CompactSearchWindowController
         controller._select = select;
         controller._history = history;
         controller._learningEnabled = history?.Policy.Enabled ?? false;
+        SuggestionJumpList.Update(controller._learningEnabled
+            ? mostViewed.Length > 0 ? mostViewed : apps.OrderBy(app => app.Name, StringComparer.OrdinalIgnoreCase).Take(6).ToArray()
+            : []);
+        if (select is not null && SuggestionJumpList.TakeRequest() is { } requested)
+        {
+            var target = apps.FirstOrDefault(app => app.FullName == requested);
+            if (target is not null) main.DispatcherQueue.TryEnqueue(() => controller.Open(target));
+            else main.DispatcherQueue.TryEnqueue(() =>
+            {
+                controller.RestoreMain();
+                controller.Report("This application is no longer in your library.");
+            });
+        }
         if (learningChanged) controller._exposureSignature = null;
         if (changed && controller._pendingOverview is null) controller.RefreshSuggestions();
         if (controller._pendingOverview is { } pending && selectedKey == pending && !overviewLoading)
@@ -184,7 +197,7 @@ internal sealed class CompactSearchWindowController
                         <Grid x:Name="Badges" ColumnSpacing="8" RowSpacing="8" HorizontalAlignment="Stretch" />
                     </ScrollViewer>
                 </Border>
-                <Button x:Name="OpenFull" Grid.Row="4" Content="Back to main" HorizontalAlignment="Right" />
+                <Button x:Name="OpenFull" Grid.Row="4" Content="Open WinApps" HorizontalAlignment="Right" />
             </Grid>
             """);
         AppearanceResources.Apply(_root);
@@ -218,7 +231,7 @@ internal sealed class CompactSearchWindowController
             }
         };
         var backButton = (Button)_root.FindName("OpenFull");
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(backButton, "Back to main");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(backButton, "Open WinApps");
         backButton.Click += (_, _) => RestoreMain();
         _searchWindow = new Window
         {
@@ -246,7 +259,7 @@ internal sealed class CompactSearchWindowController
         if (_searchWindow.AppWindow.Presenter is OverlappedPresenter presenter)
         {
             presenter.IsMaximizable = false;
-            presenter.IsMinimizable = false;
+            presenter.IsMinimizable = true;
             presenter.PreferredMinimumWidth = 360;
             presenter.PreferredMinimumHeight = 240;
         }
@@ -423,8 +436,8 @@ internal sealed class CompactSearchWindowController
         _status.Text = _select is null ? "Loading your application library…"
             : _matches.Length == 0 ? "No matching applications."
             : query.Length > 0 ? $"{_matches.Length} matching applications"
-            : _activeKeys.Count > 0 ? "Running & suggested apps · Choose an app to open its overview"
-            : _mostViewed.Length > 0 ? "Suggested for you · Choose an app to open its overview" : "Suggested apps · Choose an app to open its overview";
+            : _activeKeys.Count > 0 ? "Running & suggested apps"
+            : _mostViewed.Length > 0 ? "Suggested for you" : "Suggested apps";
         foreach (var tile in _activityTiles) tile.Stop();
         _activityTiles.Clear();
         _badges.Children.Clear();
@@ -445,18 +458,29 @@ internal sealed class CompactSearchWindowController
             content.Children.Add(icon);
             var name = new TextBlock { Text = app.Name, TextWrapping = TextWrapping.Wrap,
                 VerticalAlignment = VerticalAlignment.Center };
-            Grid.SetColumn(name, 1);
-            content.Children.Add(name);
+            var text = new StackPanel { Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(name);
+            var status = new TextBlock { Text = "Checking activity…", FontSize = 11,
+                TextWrapping = TextWrapping.Wrap, Opacity = 0.8 };
+            var indicator = new Border { Width = 8, Height = 8, CornerRadius = new CornerRadius(4),
+                VerticalAlignment = VerticalAlignment.Center };
+            var statusRow = new Grid { ColumnSpacing = 6 };
+            statusRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            statusRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            statusRow.Children.Add(indicator);
+            Grid.SetColumn(status, 1);
+            statusRow.Children.Add(status);
+            text.Children.Add(statusRow);
+            Grid.SetColumn(text, 1);
+            content.Children.Add(text);
             var instanceCount = new TextBlock { FontSize = 10, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
             var instanceBadge = new Border
             {
                 Child = instanceCount, Style = (Style)_root.Resources["InstanceBadge"],
                 HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom,
-                Margin = new Thickness(0, 0, -5, -5), Visibility = Visibility.Collapsed
+                Margin = new Thickness(0, 6, 0, 0), Visibility = Visibility.Collapsed
             };
-            Grid.SetColumnSpan(instanceBadge, 2);
-            content.Children.Add(instanceBadge);
-            name.Margin = new Thickness(0, 0, 14, 0);
+            text.Children.Add(instanceBadge);
             var button = new Button { Content = content, Style = (Style)_root.Resources["SuggestionBadge"],
                 HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch,
                 MinHeight = 76, Margin = new Thickness(0), IsEnabled = _select is not null };
@@ -465,7 +489,7 @@ internal sealed class CompactSearchWindowController
             button.ContextFlyout = ApplicationRail.CreateApplicationContextFlyout(app, Report, LaunchFromMenu, () => Open(app));
             button.Click += (_, _) => Open(app);
             _badges.Children.Add(button);
-            _activityTiles.Add(new CompactActivityTile(app, button, instanceBadge, instanceCount));
+            _activityTiles.Add(new CompactActivityTile(app, button, instanceBadge, instanceCount, status, indicator));
         }
         LayoutBadges();
         _activity?.Refresh();

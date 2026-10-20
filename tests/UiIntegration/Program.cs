@@ -59,22 +59,27 @@ public sealed partial class ChecksApplication : Application
                 var label = new TextBlock();
                 var badge = new Border { Child = label };
                 var tileButton = new Button { Content = badge };
-                var tile = new CompactActivityTile(fixture, tileButton, badge, label);
+                var status = new TextBlock();
+                var indicator = new Border();
+                var tile = new CompactActivityTile(fixture, tileButton, badge, label, status, indicator);
                 var activityFirst = new WinApps.Services.Inventory.RunningApplication(123, 1, fixture.Name, "First window", "fixture.exe", 0, 1, WindowHandle: 1);
                 var activitySecond = activityFirst with { Id = 124, Title = "Second window" };
                 tile.Update([activityFirst, activitySecond]);
-                Expect(label.Text == "2" && badge.Visibility == Visibility.Visible, "Running instances must appear in the compact badge.");
+                Expect(label.Text == "2 processes" && badge.Visibility == Visibility.Visible, "Multiple processes must appear in the Mini badge.");
                 Expect((ToolTipService.GetToolTip(badge) as string)?.Contains("PID 124") == true,
                     "Instance tooltip must include window titles and process IDs.");
                 await new UiDelay(1800);
-                Expect(badge.Background is null && badge.Visibility == Visibility.Visible && tileButton.BorderBrush is not null,
-                    "Start feedback must preserve the badge background and retain the active outline.");
+                Expect(indicator.Background is not null && status.Text.Contains("Running"),
+                    "Running tiles must show a status indicator and text.");
+                tile.Update([activityFirst with { Memory = 104857600 }]);
+                Expect(status.Text.Contains("100 MiB RAM") && badge.Visibility == Visibility.Collapsed,
+                    "Memory must update even when the app stays running; a single process needs no badge.");
                 tile.Update([]);
                 await new UiDelay(1800);
                 Expect(badge.Visibility == Visibility.Collapsed, "The final closed instance must settle back to normal.");
                 tile.Stop();
                 tile.Update([activityFirst]);
-                Expect(label.Text == "0", "Stopped tiles must ignore late updates.");
+                Expect(status.Text == "Suggested", "Stopped tiles must ignore late updates.");
                 var companion = new Window { Content = new Grid() };
                 var activity = new CompactAppActivity(companion, () => [], () => [tile]);
                 activity.Start();

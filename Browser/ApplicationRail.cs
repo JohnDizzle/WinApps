@@ -476,7 +476,7 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
             menu.Items.Add(launchItem);
             var elevatedItem = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
             {
-                Text = "Launch elevated",
+                Text = "Run as administrator",
                 Icon = MenuIcon("\uE7BA"),
                 IsEnabled = ApplicationLauncher.CanLaunchElevated(app)
             };

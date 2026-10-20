@@ -10,7 +10,8 @@ internal static class Program
     [STAThread]
     private static void Main()
     {
-        if (!CompactWindowStore.Shared.Load().StartInCompactMode)
+        var overviewRequested = SuggestionJumpList.RequestedApp is not null;
+        if (!CompactWindowStore.Shared.Load().StartInCompactMode && !overviewRequested)
         {
             ReactorApp.Run<WinAppsShell>("WinApps",
                 width: WindowPlacementStore.DefaultWidth, height: WindowPlacementStore.DefaultHeight);
@@ -24,7 +25,7 @@ internal static class Program
                 Title = "WinApps", Width = WindowPlacementStore.DefaultWidth,
                 Height = WindowPlacementStore.DefaultHeight, ActivateOnOpen = false
             }, () => new WinAppsShell(), host => WindowPlacementController.Attach(host.Window, deferMaximize: true));
-            CompactSearchWindowController.EnterCompactMode(main.NativeWindow);
+            if (!overviewRequested) CompactSearchWindowController.EnterCompactMode(main.NativeWindow);
         });
     }
 }
