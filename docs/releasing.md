@@ -6,7 +6,7 @@ The app bundles both the .NET runtime and Windows App SDK runtime. The project u
 2. Publish the portable self-contained app:
 
    ```powershell
-   dotnet publish MyApps.csproj --configuration Release --runtime win-x64 --self-contained true -p:WindowsPackageType=None --output artifacts/win-x64
+   dotnet publish WinApps.csproj --configuration Release --runtime win-x64 --self-contained true -p:WindowsPackageType=None --output artifacts/win-x64
    ```
 
 3. Build a signed MSIX using an existing matching current-user certificate:

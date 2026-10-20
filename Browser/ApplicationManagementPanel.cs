@@ -59,7 +59,8 @@ internal sealed class ApplicationManagementPanel : Component<ApplicationManageme
                 .AutomationName($"Copy {Props.App.Name} for Installed apps search").CornerRadius(9).Padding(10)),
             Component<TransientActionNotice, TransientActionNoticeProps>(new(message.Value, noticeVersion.Value)).WithKey("management-notice"));
     }
-    internal static Uri ManagementUri(InstalledApp app) => new ($"ms-settings:appsfeatures");
+    internal static Uri ManagementUri(InstalledApp app) => new(string.IsNullOrWhiteSpace(app.FamilyName)
+        ? "ms-settings:appsfeatures" : $"ms-settings:appsfeatures-app?{Uri.EscapeDataString(app.FamilyName)}");
     internal static async Task<bool> OpenManagementAsync(InstalledApp app, Func<Uri, Task<bool>> launch)
     {
         var target = ManagementUri(app);

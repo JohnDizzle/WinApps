@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-using MyApps.Models;
-using MyApps.Services.Packages;
+using WinApps.Models;
+using WinApps.Services.Packages;
 using Windows.Management.Deployment;
 
 var manager = new PackageManager();

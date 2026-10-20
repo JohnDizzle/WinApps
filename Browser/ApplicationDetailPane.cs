@@ -228,7 +228,8 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                                     string.IsNullOrWhiteSpace(selected.FamilyName) ? "Desktop application · This PC" : "Packaged application · This PC")
                                     .FontSize(12).TextWrapping().Foreground(Theme.SecondaryText),
                                 TextBlock(status).FontSize(12).TextWrapping().Foreground(Theme.SecondaryText)
-                                    .IsVisible(selected is null))).Flex(grow: 1, basis: 0),
+                                    .IsVisible(selected is null)))
+                            .Margin(bottom: selected is not null && Props.Compact ? 12 : 0).Flex(grow: 1, basis: 0),
                         HStack(8, Slot("app-management", selected is not null && selected.ConsolePath is null ? Component<ApplicationManagementPanel, ApplicationManagementPanelProps>(new(selected))
                             .WithKey($"management-{selected.FullName}") : Text("")),
                         Slot("launch-actions", selected is not null ? Component<ApplicationLaunchActions, ApplicationLaunchActionsProps>(new(selected, packageConfiguration, Props.OnUninstalled))

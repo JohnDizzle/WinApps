@@ -29,12 +29,19 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - name: Restore application
-        run: dotnet restore MyApps.csproj --property:Configuration=Release
+        run: dotnet restore WinApps.csproj --property:Configuration=Release
       - name: Build application
-        run: dotnet build MyApps.csproj --configuration Release --no-restore
+        run: dotnet build WinApps.csproj --configuration Release --no-restore
       - name: Run portable inspection checks
         run: dotnet run --project tests/DataInspection/DataInspection.csproj --configuration Release
       - name: Run native UI isolation and recovery checks
         run: dotnet run --project tests/UiIntegration/UiIntegration.csproj --configuration Release
+      - name: Run Mini and Jump List regression checks
+        shell: pwsh
+        run: |
+          foreach ($check in @('--compact-search-checks', '--compact-activity-checks', '--jump-list-routing-checks', '--launch-notice-checks', '--tab-navigation-checks', '--close-checks', '--asset-checks', '--action-notices')) {
+            dotnet run --project tests/UiIntegration/UiIntegration.csproj --configuration Release --no-build -- $check
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
       - name: Check patch whitespace
         run: git diff --check

@@ -36,8 +36,8 @@ internal sealed class WinAppsShell : Component
             {
                 if (window?.NativeWindow is { } nativeWindow) CompactSearchWindowController.EnterCompactMode(nativeWindow);
             }))
-            .Width(44).Height(40).Padding(8).CornerRadius(10).AutomationName("Show Mini WinApps")
-            .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Show Mini WinApps"));
+            .Width(44).Height(40).Padding(8).CornerRadius(10).AutomationName("Open Mini Mode")
+            .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Open Mini Mode"));
 
         // Window material and theme must belong to the host root, outside recovery boundaries.
         return WindowFrame(theme.Value,

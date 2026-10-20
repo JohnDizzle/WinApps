@@ -16,7 +16,20 @@ internal static class RunningApplications
         if (cancellationToken.IsCancellationRequested) return [];
         var results = new List<RunningApplication>();
         var windows = ApplicationWindows.Read();
-        var folder = string.IsNullOrWhiteSpace(app?.InstallPath) ? null : System.IO.Path.GetFullPath(app.InstallPath).TrimEnd('\\') + "\\";
+        var installPath = app?.InstallPath;
+        if (!string.IsNullOrWhiteSpace(app?.FamilyName))
+        {
+            // Use current registration rather than a cached versioned WindowsApps folder.
+            try
+            {
+                var current = new Windows.Management.Deployment.PackageManager().FindPackagesForUser(string.Empty)
+                    .FirstOrDefault(package => package.Id.FamilyName.Equals(app.FamilyName, StringComparison.OrdinalIgnoreCase));
+                if (current is not null) installPath = current.InstalledLocation.Path;
+            }
+            catch (Exception error) when (error is System.Runtime.InteropServices.COMException or UnauthorizedAccessException)
+            { System.Diagnostics.Debug.WriteLine($"Current package location unavailable: {error.Message}"); }
+        }
+        var folder = string.IsNullOrWhiteSpace(installPath) ? null : System.IO.Path.GetFullPath(installPath).TrimEnd('\\') + "\\";
         var processes = Process.GetProcesses();
         try
         {

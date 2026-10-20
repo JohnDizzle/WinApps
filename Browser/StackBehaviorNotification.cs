@@ -33,6 +33,11 @@ internal sealed class StackBehaviorNotification : Component
             var attention = entry.Message.Contains("fail", StringComparison.OrdinalIgnoreCase)
                 || entry.Message.Contains("could not", StringComparison.OrdinalIgnoreCase)
                 || entry.Message.Contains("couldn't", StringComparison.OrdinalIgnoreCase)
+                || entry.Message.Contains("no longer", StringComparison.OrdinalIgnoreCase)
+                || entry.Message.Contains("registration changed", StringComparison.OrdinalIgnoreCase)
+                || entry.Message.Contains("does not declare", StringComparison.OrdinalIgnoreCase)
+                || entry.Message.Contains("cannot", StringComparison.OrdinalIgnoreCase)
+                || entry.Message.Contains("no package launch", StringComparison.OrdinalIgnoreCase)
                 || entry.Message.Contains("unavailable", StringComparison.OrdinalIgnoreCase);
             var cancelled = entry.Message.Contains("cancel", StringComparison.OrdinalIgnoreCase);
             var title = attention ? "Action needs attention" : cancelled ? "Action cancelled" : "Action completed";

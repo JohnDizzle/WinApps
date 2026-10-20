@@ -27,8 +27,8 @@ Building from source requires Windows, a stable .NET 10 SDK, and NuGet access. V
 ```powershell
 git clone https://github.com/JohnDizzle/WinApps.git
 cd WinApps
-dotnet restore MyApps.csproj
-dotnet run --project MyApps.csproj -p:WindowsPackageType=None
+dotnet restore WinApps.csproj
+dotnet run --project WinApps.csproj -p:WindowsPackageType=None
 ```
 
 Run the portable checks with:

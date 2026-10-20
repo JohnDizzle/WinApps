@@ -33,20 +33,20 @@ internal static class SettingsFlyout
         content.Children.Add(SettingsCard("Appearance", "\uE790", themeButton, choices));
         var startCompact = new ToggleSwitch
         {
-            Header = "Start in Mini WinApps",
+            Header = "Start in Mini Mode",
             IsOn = CompactWindowStore.Shared.Load().StartInCompactMode
         };
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(startCompact, "Start in Mini WinApps");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(startCompact, "Start in Mini Mode");
         startCompact.Toggled += (_, _) => CompactWindowStore.Shared.SetStartInCompactMode(startCompact.IsOn);
         var rememberCompact = new ToggleSwitch
         {
             Header = "Remember position and size",
             IsOn = CompactWindowStore.Shared.Load().RememberPrevious
         };
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(rememberCompact, "Remember Mini WinApps position and size");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(rememberCompact, "Remember Mini Mode position and size");
         rememberCompact.Toggled += (_, _) => CompactWindowStore.Shared.SetRememberPrevious(rememberCompact.IsOn);
-        content.Children.Add(SettingsCard("Mini WinApps", "\uE8A7",
-            ToggleRow("Start in Mini WinApps", "Open only Mini when WinApps starts.", startCompact),
+        content.Children.Add(SettingsCard("Mini Mode", "\uE8A7",
+            ToggleRow("Start in Mini Mode", "Open only Mini Mode when WinApps starts.", startCompact),
             ToggleRow("Remember position and size", "Reopen where you last left it.", rememberCompact)));
         var history = ApplicationViewHistory.Shared;
         var learning = new ToggleSwitch { Header = "Log app interactions", IsOn = history.Policy.Enabled };

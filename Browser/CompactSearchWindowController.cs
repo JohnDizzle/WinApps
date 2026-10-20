@@ -68,7 +68,7 @@ internal sealed class CompactSearchWindowController
     }
 
     internal static void Update(Window main, InstalledApp[] apps, InstalledApp[] mostViewed, Action<InstalledApp>? select, ApplicationViewHistory? history = null,
-        string? selectedKey = null, bool overviewLoading = false)
+        string? selectedKey = null, bool overviewLoading = false, bool libraryReady = true)
     {
         var controller = Controllers.GetValue(main, window => new CompactSearchWindowController(window));
         // Activity summaries rerender the explorer frequently; retain keyboard focus
@@ -82,10 +82,10 @@ internal sealed class CompactSearchWindowController
         controller._select = select;
         controller._history = history;
         controller._learningEnabled = history?.Policy.Enabled ?? false;
-        SuggestionJumpList.Update(controller._learningEnabled
+        if (libraryReady) SuggestionJumpList.Update(controller._learningEnabled
             ? mostViewed.Length > 0 ? mostViewed : apps.OrderBy(app => app.Name, StringComparer.OrdinalIgnoreCase).Take(6).ToArray()
             : []);
-        if (select is not null && SuggestionJumpList.TakeRequest() is { } requested)
+        if (libraryReady && select is not null && SuggestionJumpList.TakeRequest() is { } requested)
         {
             var target = apps.FirstOrDefault(app => app.FullName == requested);
             if (target is not null) main.DispatcherQueue.TryEnqueue(() => controller.Open(target));
@@ -185,7 +185,7 @@ internal sealed class CompactSearchWindowController
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <TitleBar x:Name="CompactTitleBar" Title="Mini WinApps" Height="48" Margin="-12,-12,-12,0" />
+                <TitleBar x:Name="CompactTitleBar" Title="WinApps — Mini Mode" Height="48" Margin="-12,-12,-12,0" />
                 <TextBox Grid.Row="1" x:Name="Search" PlaceholderText="Search your library" MinHeight="40" />
                 <TextBlock x:Name="Status" Grid.Row="2" TextWrapping="Wrap" FontSize="12"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -235,7 +235,7 @@ internal sealed class CompactSearchWindowController
         backButton.Click += (_, _) => RestoreMain();
         _searchWindow = new Window
         {
-            Title = "Mini WinApps", Content = _root
+            Title = "WinApps — Mini Mode", Content = _root
         };
         _companionAppWindow = _searchWindow.AppWindow;
         _searchWindow.ExtendsContentIntoTitleBar = true;
@@ -320,7 +320,7 @@ internal sealed class CompactSearchWindowController
                 Title = "Quit WinApps?",
                 Content = new TextBlock
                 {
-                    Text = "This closes Mini WinApps and the main WinApps window. Other applications stay open.",
+                    Text = "This closes Mini Mode and the main WinApps window. Other applications stay open.",
                     TextWrapping = TextWrapping.Wrap
                 },
                 PrimaryButtonText = "Quit WinApps",

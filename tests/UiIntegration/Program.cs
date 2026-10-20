@@ -49,6 +49,25 @@ public sealed partial class ChecksApplication : Application
     {
         try
         {
+            if (Environment.GetCommandLineArgs().Contains("--jump-list-routing-checks"))
+            {
+                var identity = "fixture.family!App";
+                var argument = "--overview=" + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(identity));
+                if (SuggestionJumpList.ParseRequest(argument) != identity ||
+                    SuggestionJumpList.ParseRequest("--overview=invalid!") is not null ||
+                    SuggestionJumpList.ParseRequest("--other=value") is not null)
+                    throw new InvalidOperationException("Jump List overview arguments must decode only valid overview requests.");
+                typeof(SuggestionJumpList).GetProperty("RequestedApp",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!.SetValue(null, identity);
+                var selectedCount = 0;
+                CompactSearchWindowController.Update(_window, [], [], _ => selectedCount++, libraryReady: false);
+                if (SuggestionJumpList.RequestedApp != identity || selectedCount != 0)
+                    throw new InvalidOperationException("Initial empty renders must preserve the requested overview until the library is ready.");
+                if (SuggestionJumpList.TakeRequest() != identity || SuggestionJumpList.TakeRequest() is not null)
+                    throw new InvalidOperationException("Overview requests must be consumed exactly once.");
+                Console.WriteLine("Passed Jump List argument and library readiness checks.");
+                return;
+            }
             if (Environment.GetCommandLineArgs().Contains("--compact-activity-checks"))
             {
                 void Expect(bool condition, string message)
@@ -97,7 +116,9 @@ public sealed partial class ChecksApplication : Application
                 var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
                 var type = typeof(CompactSearchWindowController);
                 var controller = Activator.CreateInstance(type, flags, null, [_window], null)!;
+                Console.WriteLine("Creating Mini test window.");
                 type.GetMethod("EnsureWindow", flags)!.Invoke(controller, null);
+                Console.WriteLine("Mini test window created.");
                 var companion = (Window)type.GetField("_searchWindow", flags)!.GetValue(controller)!;
                 var content = (Grid)companion.Content;
                 var titleBar = (TitleBar)content.FindName("CompactTitleBar");
@@ -112,9 +133,11 @@ public sealed partial class ChecksApplication : Application
                 type.GetField("_mostViewed", flags)!.SetValue(controller, new[] { beta });
                 type.GetField("_select", flags)!.SetValue(controller, (Action<InstalledApp>)(_ => { }));
                 type.GetMethod("RefreshSuggestions", flags)!.Invoke(controller, null);
+                Console.WriteLine("Mini suggestions populated.");
                 if (!status.Text.StartsWith("Suggested for you") || badges.Children.Count != 1)
                     throw new InvalidOperationException("Empty search must show most-viewed app badges.");
                 search.Text = "publisher a";
+                Console.WriteLine("Mini publisher filter set.");
                 type.GetMethod("RefreshSuggestions", flags)!.Invoke(controller, null);
                 await new UiDelay(80);
                 if (badges.Children.Count != 1 || !Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(badges.Children[0]).Contains(alpha.Name))
@@ -145,6 +168,7 @@ public sealed partial class ChecksApplication : Application
                 if (badges.Children.Count != 2 || !Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(badges.Children[0]).Contains(alpha.Name))
                     throw new InvalidOperationException("Running installed apps outside the learned shortlist must appear before suggestions.");
                 var overviewRequests = 0;
+                Console.WriteLine("Mini filtering checks complete.");
                 type.GetField("_select", flags)!.SetValue(controller, (Action<InstalledApp>)(_ => overviewRequests++));
                 type.GetMethod("Open", flags)!.Invoke(controller, [beta]);
                 type.GetMethod("Open", flags)!.Invoke(controller, [beta]);
@@ -152,6 +176,7 @@ public sealed partial class ChecksApplication : Application
                     !Descendants((UIElement)badges.Children[0]).OfType<ProgressRing>().Any(ring => ring.IsActive))
                     throw new InvalidOperationException("Compact overview opening must show progress and block duplicate requests until ready.");
                 type.GetMethod("MainClosed", flags)!.Invoke(controller, [_window, null]);
+                Console.WriteLine("Mini cleanup complete.");
                 type.GetMethod("MainClosed", flags)!.Invoke(controller, [_window, null]);
                 if (type.GetField("_searchWindow", flags)!.GetValue(controller) is not null || badges.Children.Count != 0)
                     throw new InvalidOperationException("Shutdown must release companion window references and tile assets, and tolerate repeated cleanup.");
@@ -259,6 +284,33 @@ public sealed partial class ChecksApplication : Application
                 return;
             }
             var reconciler = new Reconciler();
+            if (Environment.GetCommandLineArgs().Contains("--launch-notice-checks"))
+            {
+                var failures = new[]
+                {
+                    "Package registration changed. Refresh applications before launching.",
+                    "Launch failed: this application is no longer registered. Refresh the application library.",
+                    "The selected application is no longer registered for launch."
+                };
+                foreach (var failure in failures) StackBehaviorNotification.Queue.Add(failure, DateTimeOffset.UtcNow);
+                var tree = Component<StackBehaviorNotification>();
+                UIElement? root = null;
+                void RefreshNotices()
+                {
+                    if (root is null) return;
+                    var next = Component<StackBehaviorNotification>();
+                    root = reconciler.Reconcile(tree, next, root, RefreshNotices)!;
+                    tree = next;
+                }
+                root = reconciler.Mount(tree, RefreshNotices)!;
+                await new UiDelay(300);
+                var notices = Descendants(root).OfType<InfoBar>().ToArray();
+                if (notices.Length != failures.Length || notices.Any(bar =>
+                    bar.Severity != InfoBarSeverity.Warning || bar.Title != "Action needs attention"))
+                    throw new InvalidOperationException("Package launch failures must never report success.");
+                Console.WriteLine("Passed package launch failure notification checks.");
+                return;
+            }
             var checks = 0;
             void Check(bool value, string message)
             {
@@ -289,7 +341,8 @@ public sealed partial class ChecksApplication : Application
                 var settings = SettingsFlyout.Create(requestedTheme, requestedTheme == ElementTheme.Dark,
                     BackdropKind.Mica, () => { }, _ => { });
                 var settingsPanel = (StackPanel)((ScrollViewer)settings.Content).Content;
-                var about = (StackPanel)((Border)settingsPanel.Children.Last()).Child;
+                var about = Descendants(settingsPanel.Children.Last()).OfType<StackPanel>().Single(panel =>
+                    panel.Children.OfType<TextBlock>().Any(text => text.Text == "John M. Doyle"));
                 var links = about.Children.OfType<StackPanel>().Single().Children.OfType<HyperlinkButton>().ToArray();
                 Check(links.Select(link => link.Content.ToString()).SequenceEqual(new[] { "Features", "Privacy", "License" }),
                     "Settings must include Features, Privacy, and License in one bottom card.");

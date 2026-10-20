@@ -25,16 +25,11 @@ internal sealed class ApplicationOverviewCards : Component<ApplicationOverviewCa
         input = new InputAction { Select = () => SelectSection(section) };
         Inputs.Add(button, input);
         button.Click += (_, _) => input.Select?.Invoke();
-        button.AddHandler(UIElement.PointerPressedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler((_, args) =>
-        {
-            if (args.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse && args.GetCurrentPoint(button).Properties.IsLeftButtonPressed)
-                input.Select?.Invoke();
-        }), true);
     }
 
     private void SelectSection(string section)
     {
-        if (_selecting || _section == section) return;
+        if (_selecting) return;
         _selecting = true;
         try
         {
@@ -46,6 +41,18 @@ internal sealed class ApplicationOverviewCards : Component<ApplicationOverviewCa
                 BrowserMotion.CardSelectionFeedback(button, name == section);
                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetItemStatus(button, name == section ? "Selected" : "");
             }
+            if (_panels.TryGetValue(section, out var selectedPanel))
+                selectedPanel.DispatcherQueue.TryEnqueue(() =>
+                {
+                    // Reveal after visibility changes have reached the layout pass.
+                    if (_section != section || selectedPanel.XamlRoot is null) return;
+                    selectedPanel.StartBringIntoView(new BringIntoViewOptions
+                    {
+                        AnimationDesired = new Windows.UI.ViewManagement.UISettings().AnimationsEnabled,
+                        VerticalAlignmentRatio = 0,
+                        VerticalOffset = -12
+                    });
+                });
         }
         finally { _selecting = false; }
     }
@@ -55,21 +62,20 @@ internal sealed class ApplicationOverviewCards : Component<ApplicationOverviewCa
         var app = Props.App;
         var package = Props.Package;
         var packaged = !string.IsNullOrWhiteSpace(app.FamilyName);
-        Element Card(string title, string glyph, string summary, string subtitle) => GlassButton(Button(VStack(8,
-            HStack(10, FluentGlyph(glyph, 24), TextBlock(title).FontSize(18).SemiBold()).HAlign(HorizontalAlignment.Center),
-            TextBlock(summary).TextWrapping().SemiBold().Set(control => { control.TextAlignment = TextAlignment.Center; control.MaxLines = 2; control.TextTrimming = TextTrimming.CharacterEllipsis; }),
-            TextBlock(subtitle).TextWrapping().Foreground(Theme.SecondaryText).Set(control => { control.TextAlignment = TextAlignment.Center; control.MaxLines = 1; control.TextTrimming = TextTrimming.CharacterEllipsis; })), () => { }))
-            .Padding(16).CornerRadius(12).Height(136).MinWidth(0).HAlign(HorizontalAlignment.Stretch)
+        Element Card(string title, string glyph, string summary, string subtitle) => GlassButton(Button(HStack(8,
+            FluentGlyph(glyph, 16), TextBlock(title).SemiBold()), () => { }))
+            .Padding(10).CornerRadius(9).Height(44).MinWidth(0).HAlign(HorizontalAlignment.Stretch)
             .Set(control =>
             {
                 _buttons[title] = control;
                 AttachInput(control, title);
-                control.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+                control.HorizontalContentAlignment = HorizontalAlignment.Center;
+                Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, $"{summary}\n{subtitle}");
                 control.VerticalContentAlignment = VerticalAlignment.Center;
                 BrowserMotion.CardSelectionFeedback(control, _section == title);
                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetItemStatus(control, _section == title ? "Selected" : "");
             })
-            .Margin(right: Props.Compact ? 0 : 8, bottom: Props.Compact ? 8 : 0).Flex(grow: 1, shrink: 1, basis: 0)
+            .Margin(right: title == "Files" ? 0 : 8).Flex(grow: 1, shrink: 1, basis: 0)
             .AutomationName($"Show {title} details").WithKey(title);
         var cards = new[]
         {
@@ -79,7 +85,7 @@ internal sealed class ApplicationOverviewCards : Component<ApplicationOverviewCa
             Card("Files", "\uE8B7", "Installed files & app data", "View locations and open folders")
         };
         return VStack(12,
-            (Props.Compact ? FlexColumn() : FlexRow()) with { Children = cards },
+            FlexRow() with { Children = cards },
             VStack(0, new[] { "Application", "Package", "Files" }.Select(name =>
                 VStack(0, Component<ApplicationOverviewDetails, ApplicationOverviewDetailsProps>(new(Props, name))
                     .WithKey($"details-{app.FullName}-{name}"))

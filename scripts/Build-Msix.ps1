@@ -37,7 +37,7 @@ $output = Join-Path $repo ("artifacts/msix/{0}/{1}-{2}" -f $Version, $Runtime, [
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 $buildManifest = Join-Path $output 'Package.appxmanifest'
 $manifest.Save($buildManifest)
-$arguments = @((Join-Path $repo 'MyApps.csproj'), '/restore', '/t:Build', '/p:Configuration=Release',
+$arguments = @((Join-Path $repo 'WinApps.csproj'), '/restore', '/t:Build', '/p:Configuration=Release',
     "/p:Platform=$($Runtime.Substring(4))", "/p:RuntimeIdentifier=$Runtime", '/p:GenerateAppxPackageOnBuild=true',
     "/p:WinAppsPackageManifest=$buildManifest", "/p:AppxPackageDir=$output\", '/p:AppxBundle=Never',
     '/p:UapAppxPackageBuildMode=SideloadOnly', '/p:GenerateTestArtifacts=false', '/p:AppxSymbolPackageEnabled=false',

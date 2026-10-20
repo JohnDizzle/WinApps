@@ -40,12 +40,17 @@ public sealed class ApplicationLauncher
                 return elevated ? "Elevated launch requested." : "Application launched.";
             }
             if (string.IsNullOrWhiteSpace(app.FamilyName)) return "No package launch identity is available for this application.";
-            var package = new PackageManager().FindPackagesForUser(string.Empty).FirstOrDefault(item =>
-                item.Id.FamilyName == app.FamilyName && item.InstalledLocation.Path.Equals(app.InstallPath, StringComparison.OrdinalIgnoreCase));
-            if (package is null) return "Package registration changed. Refresh applications before launching.";
-            var entries = await package.GetAppListEntriesAsync();
-            var entry = entries.FirstOrDefault(item => item.AppUserModelId == app.FullName);
-            if (entry is null) return "The selected application is no longer registered for launch.";
+            // Store updates replace versioned install folders, but retain the family and AUMID.
+            Windows.ApplicationModel.Package? package = null;
+            Windows.ApplicationModel.Core.AppListEntry? entry = null;
+            foreach (var candidate in new PackageManager().FindPackagesForUser(string.Empty)
+                .Where(item => item.Id.FamilyName.Equals(app.FamilyName, StringComparison.OrdinalIgnoreCase)))
+            {
+                var entries = await candidate.GetAppListEntriesAsync();
+                entry = entries.FirstOrDefault(item => item.AppUserModelId.Equals(app.FullName, StringComparison.OrdinalIgnoreCase));
+                if (entry is not null) { package = candidate; break; }
+            }
+            if (entry is null || package is null) return "Launch failed: this application is no longer registered. Refresh the application library.";
             if (!elevated)
             {
                 return await entry.LaunchAsync() ? "Application launched." : "Windows could not launch this application.";

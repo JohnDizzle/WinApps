@@ -60,6 +60,7 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
         var window = UseWindow();
         var ui = new ResumeOnUi(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread());
         var apps = UseState(Array.Empty<InstalledApp>());
+        var libraryReady = UseState(false);
         var selection = UseState(InitialSelection);
         void PublishSelection(SelectionState next)
         {
@@ -128,7 +129,7 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
                     (cacheNotice is null ? "" : $" {cacheNotice}"));
             }
             catch (Exception ex) { status.Set($"Scan failed: {ex.Message}"); }
-            finally { busy.Set(false); }
+            finally { libraryReady.Set(true); busy.Set(false); }
         }
 
         async void LoadLibrary()
@@ -146,7 +147,7 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
                 }
             }
             catch (Exception ex) { status.Set($"Library could not be loaded: {ex.Message}"); }
-            finally { busy.Set(false); }
+            finally { if (!needsScan) libraryReady.Set(true); busy.Set(false); }
             if (needsScan) Scan();
         }
 
@@ -328,7 +329,7 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
         {
             if (window?.NativeWindow is { } mainWindow)
                 CompactSearchWindowController.Update(mainWindow, apps.Value, _viewHistory.MostViewed(apps.Value), busy.Value ? null : Select, _viewHistory,
-                    selected.Value?.FullName, inspecting.Value);
+                    selected.Value?.FullName, inspecting.Value, libraryReady.Value);
             if (control.Tag as string == "responsive-explorer") return;
             control.Tag = "responsive-explorer";
             XamlRoot? observedRoot = null;

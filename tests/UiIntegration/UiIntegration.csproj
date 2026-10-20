@@ -15,7 +15,7 @@
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="../../Resources/ui-resources.json" LogicalName="WinApps.UiResources" />
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.1.3" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
     <PackageReference Include="Microsoft.Windows.CsWin32" Version="0.3.335" PrivateAssets="all" />
     <AdditionalFiles Include="../../NativeMethods.txt" />
     <PackageReference Include="Microsoft.UI.Reactor" Version="0.1.0-preview.12" />
