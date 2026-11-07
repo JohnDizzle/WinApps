@@ -14,3 +14,14 @@ GetWindowLong
 DwmGetWindowAttribute
 
 PostMessage
+IsWindowEnabled
+IsZoomed
+GetWindowRect
+GetDpiForWindow
+GetParent
+GetAncestor
+SetWinEventHook
+WINEVENT_OUTOFCONTEXT
+UnhookWinEvent
+NotifyWinEvent
+GetCurrentThreadId

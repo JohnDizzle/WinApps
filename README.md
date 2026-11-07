@@ -10,6 +10,7 @@ WinApps is in active development. Release builds are self-contained, including b
 ## Features
 
 - Cached application discovery, search, alphabet navigation, and application icons.
+- Magnifier action on running application cards opens a Window Inspector with window/child-window properties, process details, and a streaming Windows event log with pause, filtering, follow-latest, copy, and export.
 - App files embedded beneath the selected application, with file information and default-app opening.
 - Manifest configuration, declared runtime/trust, dependencies, capabilities, and related resource packages.
 - Typed scalar settings editors with explicit Save, automatic storage-type validation, and stale-value detection.

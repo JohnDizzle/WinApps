@@ -72,6 +72,7 @@ internal sealed class ApplicationActivityPanel : Component<ApplicationActivityPa
 
     public override Element Render()
     {
+        var hostWindow = UseWindow();
         var entries = UseState(Props.Snapshot ?? Array.Empty<RunningApplication>());
         var loading = UseState(Props.Snapshot is null);
         var pending = UseState<RunningApplication?>(null);
@@ -221,11 +222,11 @@ internal sealed class ApplicationActivityPanel : Component<ApplicationActivityPa
                 .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control,
                     $"Started {new DateTime(item.Started, DateTimeKind.Utc).ToLocalTime():g}")),
             FlexRow(
-            GlassButton(Button(Image(new Uri(System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "Square44x44Logo.targetsize-24.png")).AbsoluteUri).Width(18).Height(18),
-                () => OpenOverview(item)))
-                .AutomationName($"Open {item.Name} overview in WinApps").Width(30).Height(30).Padding(0).CornerRadius(7)
-                .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, $"Open {Match(item)?.Name ?? item.Name} overview in WinApps"))
-                .IsVisible(!terminate && Match(item) is not null && (Props.OnSelect is not null || Props.OnSelectActivity is not null)),
+            GlassButton(Button(FluentGlyph("\uE721", 18),
+                () => { if (hostWindow?.NativeWindow is { } owner) WindowInspectorWindow.Show(owner, item); }))
+                .AutomationName($"Inspect {item.Name} window").Width(30).Height(30).Padding(0).CornerRadius(7)
+                .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Inspect window and live events"))
+                .IsVisible(item.WindowHandle != 0),
             VStack(0).Flex(grow: 1, basis: 0),
             GlassButton(Button(FluentGlyph("\uE8A7"),
                 () => message.Set(ApplicationWindowSwitcher.SwitchTo(item))), true)

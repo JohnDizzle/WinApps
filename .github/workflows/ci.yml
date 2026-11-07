@@ -39,7 +39,7 @@ jobs:
       - name: Run Mini and Jump List regression checks
         shell: pwsh
         run: |
-          foreach ($check in @('--compact-search-checks', '--compact-activity-checks', '--jump-list-routing-checks', '--launch-notice-checks', '--tab-navigation-checks', '--close-checks', '--asset-checks', '--action-notices')) {
+          foreach ($check in @('--compact-search-checks', '--compact-activity-checks', '--jump-list-routing-checks', '--launch-notice-checks', '--tab-navigation-checks', '--close-checks', '--asset-checks', '--action-notices', '--window-inspector-checks')) {
             dotnet run --project tests/UiIntegration/UiIntegration.csproj --configuration Release --no-build -- $check
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }

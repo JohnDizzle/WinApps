@@ -49,6 +49,12 @@ public sealed partial class ChecksApplication : Application
     {
         try
         {
+            if (Environment.GetCommandLineArgs().Contains("--window-inspector-checks"))
+            {
+                SynchronizationContext.SetSynchronizationContext(new TestDispatcherContext(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread()));
+                await WindowInspectorChecks.Run(_window);
+                return;
+            }
             if (Environment.GetCommandLineArgs().Contains("--jump-list-routing-checks"))
             {
                 var identity = "fixture.family!App";
@@ -659,11 +665,21 @@ public sealed partial class ChecksApplication : Application
                 await new UiDelay(100);
                 Check(explorerList.SelectedIndex == -1 && Descendants(explorerNative).OfType<TextBlock>().Any(text => text.Text == "Startup apps · at sign-in"),
                     "Clearing must immediately show the homepage and remove the rail highlight, before its activity snapshot finishes.");
-                for (var attempt = 0; attempt < 50 && !Descendants(explorerNative).OfType<Button>().Any(button =>
-                    Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(button).EndsWith("overview in WinApps")); attempt++)
+                // Overview routing now belongs to the card tap; the icon opens an inspector.
+                Action? CardOverview(UIElement native)
+                {
+                    var table = typeof(ApplicationActivityPanel).GetField("CardActions", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!.GetValue(null)!;
+                    foreach (var card in Descendants(native).OfType<Border>())
+                    {
+                        object?[] arguments = [card, null];
+                        if ((bool)table.GetType().GetMethod("TryGetValue")!.Invoke(table, arguments)! &&
+                            arguments[1]!.GetType().GetField("Open")!.GetValue(arguments[1]) is Action open) return open;
+                    }
+                    return null;
+                }
+                for (var attempt = 0; attempt < 50 && CardOverview(explorerNative) is null; attempt++)
                     await new UiDelay(100);
-                var homepageOpen = Descendants(explorerNative).OfType<Button>().FirstOrDefault(button =>
-                    Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(button).EndsWith("overview in WinApps"));
+                var homepageOpen = CardOverview(explorerNative);
                 if (homepageOpen is null)
                 {
                     // Some test hosts cannot enumerate another process's window. Supply
@@ -673,11 +689,9 @@ public sealed partial class ChecksApplication : Application
                         Snapshot: [new WinApps.Services.Inventory.RunningApplication(1, DateTime.UtcNow.Ticks, target.Name, "Fixture window",
                             Path.Combine(target.InstallPath, "fixture.exe"), 1048576, 1)]));
                     var activityNative = reconciler.Mount(activityFixture, () => { })!;
-                    homepageOpen = Descendants(activityNative).OfType<Button>().Single(button =>
-                        Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(button).EndsWith("overview in WinApps"));
+                    homepageOpen = CardOverview(activityNative);
                 }
-                ((Microsoft.UI.Xaml.Automation.Provider.IInvokeProvider)new Microsoft.UI.Xaml.Automation.Peers.ButtonAutomationPeer(homepageOpen!)
-                    .GetPattern(Microsoft.UI.Xaml.Automation.Peers.PatternInterface.Invoke)).Invoke();
+                homepageOpen!();
                 await new UiDelay(100);
                 Check(explorerList.SelectedIndex >= 0, "A single homepage action must select its app in the rail.");
                 var homepageKey = ListedApps()[explorerList.SelectedIndex].FullName;
@@ -1015,6 +1029,12 @@ internal sealed class ThrowingView : Component
 
 internal sealed class TestDispatcherContext(Microsoft.UI.Dispatching.DispatcherQueue dispatcher) : SynchronizationContext
 {
-    public override void Post(SendOrPostCallback callback, object? state) => dispatcher.TryEnqueue(() => callback(state));
+    public override void Post(SendOrPostCallback callback, object? state) => dispatcher.TryEnqueue(() =>
+    {
+        var previous = Current;
+        SetSynchronizationContext(this);
+        try { callback(state); }
+        finally { SetSynchronizationContext(previous); }
+    });
     public override SynchronizationContext CreateCopy() => new TestDispatcherContext(dispatcher);
 }
