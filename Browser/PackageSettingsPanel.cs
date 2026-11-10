@@ -41,7 +41,7 @@ internal sealed class PackageSettingsPanel : Component<PackageSettingsPanelProps
                         TextBlock("Action").Width(90).Margin(left: 12).Flex(shrink: 0)).Padding(10)
                     }.Concat(group.Select(item =>
                     Component<SettingEditor, SettingEditorProps>(new(Props.FamilyName, item, current!, Props.Disabled || loading.Value))
-                        .WithKey(System.Text.Json.JsonSerializer.Serialize(item.Location) + item.Name))).ToArray()), true)
+                        .WithKey(System.Text.Json.JsonSerializer.Serialize(item.Location, WinApps.Services.Storage.AppJsonContext.Default.SettingLocation) + item.Name))).ToArray()), true)
                     .WithKey(group.Key)).ToArray()),
             VStack(4, (current?.Notices ?? []).Select(Text).ToArray()));
     }

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using System.ComponentModel;
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Microsoft.UI.Dispatching;
 using Windows.Win32;
@@ -30,7 +32,7 @@ internal sealed unsafe class WindowEventStream : IDisposable
     private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _stopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly List<UnhookWinEventSafeHandle> _hooks = [];
-    private readonly WINEVENTPROC _callback;
+    private static readonly ConcurrentDictionary<nint, WindowEventStream> HookOwners = new();
     private readonly int _processId;
     private readonly nint _frame;
     private readonly nint _excludedWindow;
@@ -72,7 +74,6 @@ internal sealed unsafe class WindowEventStream : IDisposable
         _frame = representative;
         _excludedWindow = excludedWindow;
         _frameThread = WindowInspection.GetWindowThreadProcessId(representative, out var owner);
-        _callback = OnEvent;
         _controller = DispatcherQueueController.CreateOnDedicatedThread();
         _controller.DispatcherQueue.TryEnqueue(() =>
         {
@@ -96,7 +97,7 @@ internal sealed unsafe class WindowEventStream : IDisposable
     {
         foreach (var range in new[] { (3u, 3u), (8u, 11u), (22u, 23u), (0x8000u, 0x8005u), (0x800Au, 0x800Cu), (0x800Fu, 0x800Fu), (0x8013u, 0x8013u) })
         {
-            var hook = PInvoke.SetWinEventHook(range.Item1, range.Item2, default, _callback, process, 0, PInvoke.WINEVENT_OUTOFCONTEXT);
+            var hook = PInvoke.SetWinEventHook(range.Item1, range.Item2, default(System.Runtime.InteropServices.SafeHandle), &DispatchEvent, process, 0, PInvoke.WINEVENT_OUTOFCONTEXT);
             if (hook.IsInvalid)
             {
                 var error = Marshal.GetLastWin32Error();
@@ -104,6 +105,7 @@ internal sealed unsafe class WindowEventStream : IDisposable
                 throw new Win32Exception(error, "Windows could not start window event monitoring.");
             }
             _hooks.Add(hook);
+            HookOwners[hook.DangerousGetHandle()] = this;
             _hookProcesses[hook.DangerousGetHandle()] = process == _processId;
         }
     }
@@ -122,6 +124,12 @@ internal sealed unsafe class WindowEventStream : IDisposable
             }
         }
         catch (Exception) { Interlocked.Increment(ref _dropped); }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
+    private static void DispatchEvent(HWINEVENTHOOK hook, uint kind, HWND window, int objectId, int childId, uint thread, uint time)
+    {
+        if (HookOwners.TryGetValue((nint)hook.Value, out var owner)) owner.OnEvent(hook, kind, window, objectId, childId, thread, time);
     }
 
     private void ProcessNotifications(DispatcherQueueTimer sender, object args)
@@ -197,11 +205,10 @@ internal sealed unsafe class WindowEventStream : IDisposable
     private void ReleaseHooks()
     {
         if (_timer is not null) { _timer.Stop(); _timer.Tick -= ProcessNotifications; _timer = null; }
-        foreach (var hook in _hooks) hook.Dispose();
+        foreach (var hook in _hooks) { HookOwners.TryRemove(hook.DangerousGetHandle(), out _); hook.Dispose(); }
         _hooks.Clear();
         _hookProcesses.Clear();
         _titles.Clear();
-        GC.KeepAlive(_callback);
     }
 
     public void Dispose()

@@ -35,7 +35,7 @@ public sealed class ApplicationViewHistory
         {
             using var stream = File.OpenRead(_path);
             if (stream.Length > 4 * 1024 * 1024) return;
-            var saved = JsonSerializer.Deserialize<Snapshot>(stream);
+            var saved = JsonSerializer.Deserialize(stream, AppJsonContext.Default.HistorySnapshot);
             if (saved is not { Version: 2, Policy: not null, Apps: not null, Outcomes: not null }) return;
             Policy = Normalize(saved.Policy);
             _apps.AddRange(saved.Apps.Where(item => item is not null && !string.IsNullOrWhiteSpace(item.Key)
@@ -138,7 +138,7 @@ public sealed class ApplicationViewHistory
         {
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(_path))!);
             File.WriteAllText(temporary, JsonSerializer.Serialize(new Snapshot(2, Policy,
-                _apps.OrderByDescending(item => item.Day).Take(8192).ToArray(), _outcomes.ToArray())));
+                _apps.OrderByDescending(item => item.Day).Take(8192).ToArray(), _outcomes.ToArray()), AppJsonContext.Default.HistorySnapshot));
             File.Move(temporary, _path, overwrite: true);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }

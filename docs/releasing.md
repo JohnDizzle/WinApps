@@ -1,12 +1,12 @@
 # Releasing WinApps
 
-The app bundles both the .NET runtime and Windows App SDK runtime. The project uses a root `Package.appxmanifest` and single-project MSIX tooling with the reserved WinApps Store identity.
+Release publishing uses Native AOT and bundles the Windows App SDK runtime. The project uses a root `Package.appxmanifest` and single-project MSIX tooling with the reserved WinApps Store identity. See [Native AOT publishing and verification](native-aot.md); a managed Rebuild is not proof that native compilation ran.
 
 1. Run the inspection and native UI checks, then review the app on Windows in both themes.
 2. Publish the portable self-contained app:
 
    ```powershell
-   dotnet publish WinApps.csproj --configuration Release --runtime win-x64 --self-contained true -p:WindowsPackageType=None --output artifacts/win-x64
+   .\scripts\Publish-NativeAot.ps1
    ```
 
 3. Build a signed MSIX using an existing matching current-user certificate:

@@ -34,6 +34,8 @@ string Preview(string name, string content, Encoding? encoding = null)
 
 try
 {
+    Check(SettingValueCodec.Format(new[] { 1, 2, 3 }) == "[1,2,3]", "Integer arrays must format without reflection serialization.");
+    Check(SettingValueCodec.Format(new byte[] { 1, 2 }) == "\"AQI=\"", "Byte arrays must retain their JSON base64 representation.");
     var historyPath = Path.Combine(root, "app-views.json");
     var history = new ApplicationViewHistory(historyPath);
     Check(!history.Policy.Enabled, "Interaction logging must default to off for every user.");
@@ -73,7 +75,7 @@ try
     var dailyHistory = new ApplicationViewHistory(dailyPath, () => learningDay);
     dailyHistory.SetPolicy(dailyHistory.Policy with { Enabled = true });
     for (var count = 0; count < 100; count++) dailyHistory.Record(firstViewed);
-    var dailySaved = JsonSerializer.Deserialize<ApplicationViewHistory.Snapshot>(File.ReadAllText(dailyPath))!;
+    var dailySaved = JsonSerializer.Deserialize(File.ReadAllText(dailyPath), AppJsonContext.Default.HistorySnapshot)!;
     Check(dailySaved.Apps.Single().Views == 20, "Repeated daily views must be capped by policy.");
     learningDay = learningDay.AddDays(21);
     dailyHistory.Record(secondViewed);

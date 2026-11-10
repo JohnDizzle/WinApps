@@ -5,7 +5,7 @@
 
 WinApps lets you browse installed Windows applications, inspect their package configuration and local files, edit supported settings, and launch packaged apps.
 
-WinApps is in active development. Release builds are self-contained, including both the .NET and Windows App SDK runtimes. See [the release procedure](docs/releasing.md) for portable publishing and Store-identity MSIX packaging.
+WinApps is in active development. Release publishing uses Native AOT, with the Windows App SDK native runtime bundled alongside the app. See [Native AOT verification](docs/native-aot.md) and [the release procedure](docs/releasing.md) for portable publishing and Store-identity MSIX packaging.
 
 ## Features
 

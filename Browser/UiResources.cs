@@ -30,7 +30,7 @@ internal static class UiResources
 
     internal static UiResourceFile Parse(string json)
     {
-        var resources = JsonSerializer.Deserialize<UiResourceFile>(json)
+        var resources = JsonSerializer.Deserialize(json, UiJsonContext.Default.UiResourceFile)
             ?? throw new InvalidDataException("UI resources are empty.");
         if (resources.Sections is null || resources.Links is null || resources.Controls is null ||
             !resources.Sections.ContainsKey("Default") ||

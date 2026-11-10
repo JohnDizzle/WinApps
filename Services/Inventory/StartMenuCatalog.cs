@@ -2,6 +2,7 @@
 using System.Runtime.InteropServices;
 using WinApps.Models;
 using WinApps.Services.Icons;
+using WinApps.Services.Packages;
 
 namespace WinApps.Services.Inventory;
 
@@ -11,13 +12,8 @@ public sealed class StartMenuCatalog
     {
         var apps = new List<InstalledApp>();
         var skipped = 0;
-        object? shell = null;
         try
         {
-            var shellType = Type.GetTypeFromProgID("WScript.Shell");
-            if (shellType is null) return new(apps, 1);
-            shell = Activator.CreateInstance(shellType);
-            if (shell is null) return new(apps, 1);
             foreach (var root in new[] { Environment.GetFolderPath(Environment.SpecialFolder.Programs),
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms) }.Distinct(StringComparer.OrdinalIgnoreCase))
             {
@@ -31,7 +27,6 @@ public sealed class StartMenuCatalog
                         if ((File.GetAttributes(folder) & FileAttributes.ReparsePoint) != 0) continue;
                         foreach (var path in Directory.EnumerateFileSystemEntries(folder))
                         {
-                            object? shortcut = null;
                             try
                             {
                                 var attributes = File.GetAttributes(path);
@@ -41,24 +36,23 @@ public sealed class StartMenuCatalog
                                 var name = Path.GetFileNameWithoutExtension(path);
                                 if (ApplicationFilter.IsSupportingComponent(name) ||
                                     System.Text.RegularExpressions.Regex.IsMatch(name, @"(?i)\b(uninstall|setup|update|help)\b")) continue;
-                                shortcut = ((dynamic)shell).CreateShortcut(path);
-                                var target = ((string?)((dynamic)shortcut).TargetPath ?? "").Trim().Trim('"');
+                                using var shortcut = new ShellShortcut(path);
+                                var target = shortcut.TargetPath.Trim().Trim('"');
                                 target = Environment.ExpandEnvironmentVariables(target);
-                                var arguments = (string?)((dynamic)shortcut).Arguments ?? "";
+                                var arguments = shortcut.Arguments;
                                 var console = AdministrativeTools.ConsoleTarget(target, arguments);
                                 if (!Path.IsPathFullyQualified(target) || !File.Exists(target) ||
                                     (console is null && !Path.GetExtension(target).Equals(".exe", StringComparison.OrdinalIgnoreCase))) continue;
                                 if (console is not null && !File.Exists(console)) continue;
-                                var iconLocation = (string?)((dynamic)shortcut).IconLocation;
+                                var iconLocation = shortcut.IconLocation;
                                 var icon = ApplicationIcons.DesktopIcon(iconLocation) ?? ApplicationIcons.DesktopIcon(target);
                                 apps.Add(new(name, "", $"StartMenu:{path}", "Unknown", "Unknown", "",
                                     Path.GetDirectoryName(console ?? target) ?? "", console is null ? "Desktop · Start Menu" : "Windows administrative tool",
                                     IconUri: icon, ConsolePath: console, LaunchPath: path, ExecutablePath: target, LaunchArguments: arguments,
-                                    WorkingDirectory: Environment.ExpandEnvironmentVariables((string?)((dynamic)shortcut).WorkingDirectory ?? "")));
+                                    WorkingDirectory: Environment.ExpandEnvironmentVariables(shortcut.WorkingDirectory)));
                             }
-                            catch (Exception ex) when (ex is COMException or IOException or UnauthorizedAccessException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
+                            catch (Exception ex) when (ex is COMException or IOException or UnauthorizedAccessException)
                             { skipped++; }
-                            finally { Release(shortcut); }
                         }
                     }
                     catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { skipped++; }
@@ -66,12 +60,7 @@ public sealed class StartMenuCatalog
             }
         }
         catch (Exception ex) when (ex is COMException or UnauthorizedAccessException) { skipped++; }
-        finally { Release(shell); }
         return new(apps.DistinctBy(app => $"{app.Name}|{app.InstallPath}", StringComparer.OrdinalIgnoreCase).ToArray(), skipped);
     }
 
-    private static void Release(object? value)
-    {
-        if (value is not null && Marshal.IsComObject(value)) Marshal.FinalReleaseComObject(value);
-    }
 }

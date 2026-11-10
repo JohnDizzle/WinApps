@@ -29,43 +29,31 @@ public static class ApplicationAssets
         }
         if (string.IsNullOrWhiteSpace(app.FamilyName) && (app.ExecutablePath is null || !File.Exists(app.ExecutablePath)))
             throw new InvalidOperationException("No executable or shortcut is available for this application.");
-        object? shell = null;
-        object? shortcut = null;
-        try
+        using var link = new ShellShortcut();
+        if (!string.IsNullOrWhiteSpace(app.FamilyName))
         {
-            shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!);
-            shortcut = ((dynamic)shell!).CreateShortcut(destination);
-            dynamic link = shortcut;
-            if (!string.IsNullOrWhiteSpace(app.FamilyName))
+            link.TargetPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
+            link.Arguments = "shell:AppsFolder\\" + app.FullName;
+            if (app.IconUri is not null)
             {
-                link.TargetPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
-                link.Arguments = "shell:AppsFolder\\" + app.FullName;
-                if (app.IconUri is not null)
-                {
-                    var dataDirectory = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                    try { dataDirectory = Windows.Storage.ApplicationData.Current.LocalFolder.Path; }
-                    catch (Exception error) when (error is InvalidOperationException or COMException) { }
-                    var iconDirectory = Path.Combine(dataDirectory, "WinApps", "ShortcutIcons");
-                    Directory.CreateDirectory(iconDirectory);
-                    link.IconLocation = ExportImage(app, true, iconDirectory) + ",0";
-                }
+                var dataDirectory = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                try { dataDirectory = Windows.Storage.ApplicationData.Current.LocalFolder.Path; }
+                catch (Exception error) when (error is InvalidOperationException or COMException) { }
+                var iconDirectory = Path.Combine(dataDirectory, "WinApps", "ShortcutIcons");
+                Directory.CreateDirectory(iconDirectory);
+                link.IconLocation = ExportImage(app, true, iconDirectory) + ",0";
             }
-            else
-            {
-                link.TargetPath = app.ExecutablePath;
-                link.Arguments = app.LaunchArguments ?? "";
-                link.WorkingDirectory = app.WorkingDirectory ?? "";
-                link.IconLocation = app.ExecutablePath;
-            }
-            link.Description = app.Name;
-            link.Save();
-            return destination;
         }
-        finally
+        else
         {
-            if (shortcut is not null && Marshal.IsComObject(shortcut)) Marshal.FinalReleaseComObject(shortcut);
-            if (shell is not null && Marshal.IsComObject(shell)) Marshal.FinalReleaseComObject(shell);
+            link.TargetPath = app.ExecutablePath!;
+            link.Arguments = app.LaunchArguments ?? "";
+            link.WorkingDirectory = app.WorkingDirectory ?? "";
+            link.IconLocation = app.ExecutablePath!;
         }
+        link.Description = app.Name;
+        link.Save(destination);
+        return destination;
     }
 
     public static string ExportImage(InstalledApp app, bool icon, string? directory = null)

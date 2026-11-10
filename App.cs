@@ -10,6 +10,12 @@ internal static class Program
     [STAThread]
     private static void Main()
     {
+        if (Environment.GetCommandLineArgs().Contains("--aot-self-check"))
+        {
+            try { AotSelfCheck.Run(); }
+            catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+            return;
+        }
         var overviewRequested = SuggestionJumpList.RequestedApp is not null;
         if (!CompactWindowStore.Shared.Load().StartInCompactMode && !overviewRequested)
         {

@@ -10,7 +10,7 @@ internal static class ApplicationWindows
     internal static unsafe Dictionary<int, (nint Handle, string Title)> Read()
     {
         var windows = new Dictionary<int, (nint, string)>();
-        PInvoke.EnumWindows((window, _) =>
+        NativeWindowEnumeration.All(window =>
         {
             if (!IsAppWindow(window)) return true;
             var buffer = stackalloc char[1024];
@@ -23,15 +23,15 @@ internal static class ApplicationWindows
             // Other cross-process children are embedded controls (for example WebView2).
             var classLength = PInvoke.GetClassName(window, buffer, 1024);
             if (new string(buffer, 0, classLength) != "ApplicationFrameWindow") return true;
-            PInvoke.EnumChildWindows(window, (child, _) =>
+            NativeWindowEnumeration.Children(window, child =>
             {
                 PInvoke.GetWindowThreadProcessId(child, out var childOwner);
                 if (childOwner != owner && PInvoke.IsWindowVisible(child))
                     windows.TryAdd((int)childOwner, ((nint)window.Value, title));
                 return true;
-            }, default);
+            });
             return true;
-        }, default);
+        });
         return windows;
     }
 
@@ -41,12 +41,12 @@ internal static class ApplicationWindows
         if (owner == processId) return true;
         if (!IsApplicationFrame(window)) return false;
         var found = false;
-        PInvoke.EnumChildWindows(window, (child, _) =>
+        NativeWindowEnumeration.Children(window, child =>
         {
             PInvoke.GetWindowThreadProcessId(child, out var childOwner);
             if (childOwner == processId) found = true;
             return !found;
-        }, default);
+        });
         return found;
     }
 

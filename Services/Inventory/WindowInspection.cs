@@ -35,22 +35,22 @@ internal static unsafe class WindowInspection
     internal static InspectedWindow[] Enumerate(int processId, nint representative)
     {
         var windows = new List<InspectedWindow>();
-        PInvoke.EnumWindows((window, _) =>
+        NativeWindowEnumeration.All(window =>
         {
             PInvoke.GetWindowThreadProcessId(window, out var owner);
             if (owner != processId && (nint)window.Value != representative) return true;
             windows.Add(Read((nint)window.Value));
             if (windows.Count >= 2000) return false;
-            PInvoke.EnumChildWindows(window, (child, _) =>
+            NativeWindowEnumeration.Children(window, child =>
             {
                 var depth = 1;
                 var parent = PInvoke.GetParent(child);
                 while (parent != default && parent != window && depth < 16) { depth++; parent = PInvoke.GetParent(parent); }
                 windows.Add(Read((nint)child.Value, depth));
                 return windows.Count < 2000;
-            }, default);
+            });
             return windows.Count < 2000;
-        }, default);
+        });
         return windows.ToArray();
     }
 

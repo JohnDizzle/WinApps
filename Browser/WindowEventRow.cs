@@ -3,8 +3,8 @@ using WinApps.Services.Inventory;
 
 namespace WinApps.Browser;
 
-[Microsoft.UI.Xaml.Data.Bindable]
-internal sealed class WindowEventRow(WindowEventEntry entry)
+[WinRT.GeneratedBindableCustomProperty]
+internal sealed partial class WindowEventRow(WindowEventEntry entry)
 {
     internal WindowEventEntry Entry => entry;
     public string Time => entry.Time.ToString("HH:mm:ss.fff");

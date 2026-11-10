@@ -155,7 +155,9 @@ public sealed class AppDataInspector
             if (extension == ".json")
             {
                 using var document = JsonDocument.Parse(text, new JsonDocumentOptions { MaxDepth = 64 });
-                return JsonSerializer.Serialize(document.RootElement, new JsonSerializerOptions { WriteIndented = true });
+                using var output = new MemoryStream();
+                using (var writer = new Utf8JsonWriter(output, new JsonWriterOptions { Indented = true })) document.RootElement.WriteTo(writer);
+                return System.Text.Encoding.UTF8.GetString(output.ToArray());
             }
             if (extension is ".xml" or ".config")
             {

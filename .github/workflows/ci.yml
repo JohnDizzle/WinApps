@@ -32,6 +32,9 @@ jobs:
         run: dotnet restore WinApps.csproj --property:Configuration=Release
       - name: Build application
         run: dotnet build WinApps.csproj --configuration Release --no-restore
+      - name: Publish and verify Native AOT
+        shell: pwsh
+        run: ./scripts/Publish-NativeAot.ps1
       - name: Run portable inspection checks
         run: dotnet run --project tests/DataInspection/DataInspection.csproj --configuration Release
       - name: Run native UI isolation and recovery checks

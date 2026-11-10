@@ -20,6 +20,11 @@
         <Configurations>Debug;Release;WinApps</Configurations>
         <Platforms>x64;arm64;x86</Platforms>
         <UseWinUI>true</UseWinUI>
+        <PublishAot Condition="'$(PublishAot)' == '' And '$(Configuration)' == 'Release'">true</PublishAot>
+        <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+        <WarningsAsErrors Condition="'$(PublishAot)' == 'true'">$(WarningsAsErrors);IL2026;IL3050</WarningsAsErrors>
+        <ILLinkTreatWarningsAsErrors Condition="'$(PublishAot)' == 'true'">true</ILLinkTreatWarningsAsErrors>
+        <IlcTreatWarningsAsErrors Condition="'$(PublishAot)' == 'true'">true</IlcTreatWarningsAsErrors>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <WindowsPackageType Condition="'$(WindowsPackageType)' == ''">MSIX</WindowsPackageType>
         <EnableMsixTooling>true</EnableMsixTooling>
@@ -46,7 +51,7 @@
         -->
         <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
         <SelfContained>true</SelfContained>
-        <PublishTrimmed>false</PublishTrimmed>
+        <PublishTrimmed Condition="'$(PublishAot)' == 'true'">true</PublishTrimmed>
         <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
         <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
         <Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
@@ -89,11 +94,12 @@
         <Page Remove="tests/**;artifacts/**" />
         <ApplicationDefinition Remove="tests/**;artifacts/**" />
         <None Remove="Package.StoreAssociation.xml" />
-        <PackageReference Include="System.Drawing.Common" Version="10.0.12" />
+        <PackageReference Include="System.Drawing.Common" Version="10.0.14" />
         <PackageReference Include="Microsoft.Windows.CsWin32" Version="0.3.335" PrivateAssets="all" />
         <AdditionalFiles Include="NativeMethods.txt" />
         <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
-        <PackageReference Include="Microsoft.UI.Reactor" Version="0.1.0-preview.12" />
+        <PackageReference Include="Microsoft.UI.Reactor" Version="0.1.0-preview.17" />
+        <PackageReference Include="Microsoft.UI.Reactor.Advanced" Version="0.1.0-preview.17" />
     </ItemGroup>
 
     <!--
@@ -107,13 +113,13 @@
         retail"). To enable devtools in Release as well, move these into the
         unconditioned ItemGroup above.
     -->
-    <ItemGroup Condition="'$(Configuration)' == 'Debug'">
-        <PackageReference Include="Microsoft.UI.Reactor.Devtools" Version="0.1.0-preview.12" />
+    <ItemGroup Condition="'$(Configuration)' == 'Debug' And '$(PublishAot)' != 'true'">
+        <PackageReference Include="Microsoft.UI.Reactor.Devtools" Version="0.1.0-preview.17" />
         <RuntimeHostConfigurationOption Include="Reactor.DevtoolsSupport" Value="true" Trim="true" />
     </ItemGroup>
-    <ItemGroup Condition="'$(Configuration)'=='WinApps'">
+    <ItemGroup Condition="'$(Configuration)'=='WinApps' And '$(PublishAot)' != 'true'">
       <PackageReference Include="Microsoft.UI.Reactor.Devtools">
-        <Version>0.1.0-preview.12</Version>
+        <Version>0.1.0-preview.17</Version>
       </PackageReference>
       <RuntimeHostConfigurationOption Include="Reactor.DevtoolsSupport">
         <Value>true</Value>

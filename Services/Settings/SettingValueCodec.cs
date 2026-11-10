@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using System.Globalization;
 using System.Text.Json;
+using WinApps.Services.Storage;
 
 namespace WinApps.Services.Settings;
 
@@ -15,10 +16,26 @@ public static class SettingValueCodec
         null => "null", string item => item,
         DateTimeOffset date => date.ToString("O", CultureInfo.InvariantCulture),
         TimeSpan duration => duration.ToString("c", CultureInfo.InvariantCulture),
-        Array array => JsonSerializer.Serialize(array, array.GetType()),
+        Array array => FormatArray(array),
         IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
         _ => value.ToString() ?? ""
     };
+
+    private static string FormatArray(Array array)
+    {
+        var metadata = AppJsonContext.Default.GetTypeInfo(array.GetType());
+        if (metadata is not null) return JsonSerializer.Serialize(array, metadata);
+        // Unknown WinRT array elements remain read-only and printable without
+        // asking the serializer to discover arbitrary runtime types.
+        using var output = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(output))
+        {
+            writer.WriteStartArray();
+            foreach (var item in array) { if (item is null) writer.WriteNullValue(); else writer.WriteStringValue(Format(item)); }
+            writer.WriteEndArray();
+        }
+        return System.Text.Encoding.UTF8.GetString(output.ToArray());
+    }
 
     public static bool TryParse(string type, string text, out object? value, out string error)
     {

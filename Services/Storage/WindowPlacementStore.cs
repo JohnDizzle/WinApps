@@ -20,7 +20,7 @@ public sealed class WindowPlacementStore(string? path = null)
         {
             using var stream = File.OpenRead(_path);
             if (stream.Length > 4096) return null;
-            var saved = JsonSerializer.Deserialize<WindowPlacement>(stream);
+            var saved = JsonSerializer.Deserialize(stream, AppJsonContext.Default.WindowPlacement);
             return saved is { Width: > 0, Height: > 0 } ? saved : null;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException) { return null; }
@@ -32,7 +32,7 @@ public sealed class WindowPlacementStore(string? path = null)
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(_path))!);
-            File.WriteAllText(temporary, JsonSerializer.Serialize(placement));
+            File.WriteAllText(temporary, JsonSerializer.Serialize(placement, AppJsonContext.Default.WindowPlacement));
             File.Move(temporary, _path, overwrite: true);
             return null;
         }

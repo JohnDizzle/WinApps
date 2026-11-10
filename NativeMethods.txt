@@ -25,3 +25,8 @@ WINEVENT_OUTOFCONTEXT
 UnhookWinEvent
 NotifyWinEvent
 GetCurrentThreadId
+CoCreateInstance
+CoInitializeEx
+CoUninitialize
+IShellLinkW
+IPersistFile

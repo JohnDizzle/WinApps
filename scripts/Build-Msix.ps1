@@ -37,11 +37,12 @@ $output = Join-Path $repo ("artifacts/msix/{0}/{1}-{2}" -f $Version, $Runtime, [
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 $buildManifest = Join-Path $output 'Package.appxmanifest'
 $manifest.Save($buildManifest)
-$arguments = @((Join-Path $repo 'WinApps.csproj'), '/restore', '/t:Build', '/p:Configuration=Release',
-    "/p:Platform=$($Runtime.Substring(4))", "/p:RuntimeIdentifier=$Runtime", '/p:GenerateAppxPackageOnBuild=true',
+$arguments = @((Join-Path $repo 'WinApps.csproj'), '/restore', '/t:Publish', '/p:Configuration=Release',
+    "/p:Platform=$($Runtime.Substring(4))", "/p:RuntimeIdentifier=$Runtime", '/p:GenerateAppxPackageOnBuild=false',
+    '/p:PublishAppxPackage=true', '/p:GenerateMsixAfterTarget=Publish', '/p:WindowsPackageType=MSIX',
     "/p:WinAppsPackageManifest=$buildManifest", "/p:AppxPackageDir=$output\", '/p:AppxBundle=Never',
     '/p:UapAppxPackageBuildMode=SideloadOnly', '/p:GenerateTestArtifacts=false', '/p:AppxSymbolPackageEnabled=false',
-    '/p:SelfContained=true', '/p:WindowsAppSDKSelfContained=true', '/p:PublishTrimmed=false',
+    '/p:SelfContained=true', '/p:WindowsAppSDKSelfContained=true', '/p:PublishAot=true', '/p:PublishTrimmed=true',
     "/p:AppxPackageSigningEnabled=$(!$Unsigned)")
 # Supply the optional native PDB helper when Visual Studio's C++ tools are installed.
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'

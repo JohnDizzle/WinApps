@@ -18,7 +18,7 @@ public sealed class CompactWindowStore(string? path = null)
         {
             using var stream = File.OpenRead(_path);
             if (stream.Length > 4096) return new();
-            var saved = JsonSerializer.Deserialize<CompactWindowSettings>(stream) ?? new();
+            var saved = JsonSerializer.Deserialize(stream, AppJsonContext.Default.CompactWindowSettings) ?? new();
             return saved.Placement is { Width: <= 0 } or { Height: <= 0 } ? saved with { Placement = null } : saved;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException) { return new(); }
@@ -36,7 +36,7 @@ public sealed class CompactWindowStore(string? path = null)
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(_path))!);
-            File.WriteAllText(temporary, JsonSerializer.Serialize(settings));
+            File.WriteAllText(temporary, JsonSerializer.Serialize(settings, AppJsonContext.Default.CompactWindowSettings));
             File.Move(temporary, _path, overwrite: true);
             return null;
         }

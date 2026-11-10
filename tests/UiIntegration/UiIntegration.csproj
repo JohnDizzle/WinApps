@@ -18,7 +18,9 @@
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
     <PackageReference Include="Microsoft.Windows.CsWin32" Version="0.3.335" PrivateAssets="all" />
     <AdditionalFiles Include="../../NativeMethods.txt" />
-    <PackageReference Include="Microsoft.UI.Reactor" Version="0.1.0-preview.12" />
+    <AdditionalFiles Include="../../NativeMethods.json" />
+    <PackageReference Include="Microsoft.UI.Reactor" Version="0.1.0-preview.17" />
+    <PackageReference Include="Microsoft.UI.Reactor.Advanced" Version="0.1.0-preview.17" />
     <Compile Include="../../Browser/**/*.cs" LinkBase="Browser" />
     <Compile Include="../../Models/**/*.cs" LinkBase="Models" />
     <Compile Include="../../Services/**/*.cs" LinkBase="Services" />
