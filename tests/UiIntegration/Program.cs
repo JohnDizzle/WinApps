@@ -626,11 +626,18 @@ public sealed partial class ChecksApplication : Application
                 Check(rowPosition.Y >= -1 && rowPosition.Y + Math.Min(selectedRow.ActualHeight, 300) <= outerScroll.ViewportHeight + 1,
                     $"The app name and files must remain visible after expansion and later updates. Y={rowPosition.Y}; height={selectedRow.ActualHeight}; viewport={outerScroll.ViewportHeight}");
                 var anchoredOffset = outerScroll.VerticalOffset;
-                outerScroll.ScrollTo(0, Math.Max(0, anchoredOffset - 120), new ScrollingScrollOptions(
+                var browsedOffset = Math.Max(0, anchoredOffset - 120);
+                outerScroll.ScrollTo(0, browsedOffset, new ScrollingScrollOptions(
                     ScrollingAnimationMode.Disabled, ScrollingSnapPointsMode.Ignore));
                 await new UiDelay(300);
-                Check(Math.Abs(outerScroll.VerticalOffset - anchoredOffset) < 1,
-                    "An automatic offset change during selection must not displace the selected app and its files.");
+                var browsedTree = ScrollingRail();
+                scrollNative = reconciler.Reconcile(expandedTree, browsedTree, scrollNative, () => { })!;
+                await new UiDelay(300);
+                Check(Math.Abs(outerScroll.VerticalOffset - browsedOffset) < 1,
+                    "Scrolling away must retain the browsing position after unrelated updates.");
+                Check(nativeList.Resources["ListViewItemBackgroundPointerOver"] is Microsoft.UI.Xaml.Media.SolidColorBrush hoverBrush && hoverBrush.Color.A > 0 &&
+                    nativeList.Resources["ListViewItemBackgroundPressed"] is Microsoft.UI.Xaml.Media.SolidColorBrush pressedBrush && pressedBrush.Color.A > 0,
+                    "The rail must retain native hover and pressed feedback.");
                 Console.WriteLine("Passed selected-row highlight and outer rail scrolling checks.");
                 Environment.ExitCode = 0;
                 return;
@@ -754,12 +761,19 @@ public sealed partial class ChecksApplication : Application
                     Component<TransientActionNotice, TransientActionNoticeProps>(new(noticeText)).WithKey("notice"));
                 var noticeTree = Notice();
                 UIElement? noticeNative = null;
+                var renderingNotice = false;
                 void RenderNotice()
                 {
                     if (noticeNative is null) return;
-                    var next = Notice();
-                    noticeNative = reconciler.Reconcile(noticeTree, next, noticeNative, RenderNotice)!;
-                    noticeTree = next;
+                    Check(!renderingNotice, "Publishing a notification must not reenter an active render.");
+                    renderingNotice = true;
+                    try
+                    {
+                        var next = Notice();
+                        noticeNative = reconciler.Reconcile(noticeTree, next, noticeNative, RenderNotice)!;
+                        noticeTree = next;
+                    }
+                    finally { renderingNotice = false; }
                 }
                 noticeNative = reconciler.Mount(noticeTree, RenderNotice)!;
                 RenderNotice();
@@ -908,6 +922,24 @@ public sealed partial class ChecksApplication : Application
                     Microsoft.UI.Xaml.Automation.AutomationProperties.GetItemStatus(button) == "Selected")) == $"View {view}",
                     "The selected section must match the current content.");
                 old = next; native = updated;
+            }
+            // Lay out the real header at narrow and wide detail-pane widths.
+            var headerApp = app with { Name = "AppControl Manager with a longer application title" };
+            var headerNative = (FrameworkElement)reconciler.Mount(Detail(headerApp, "Settings"), () => { })!;
+            foreach (var width in new[] { 340d, 600d, 1000d })
+            {
+                headerNative.Measure(new Windows.Foundation.Size(width, 1000));
+                headerNative.Arrange(new Windows.Foundation.Rect(0, 0, width, 1000));
+                headerNative.UpdateLayout();
+                var heading = Descendants(headerNative).OfType<TextBlock>().First(text => text.Text == headerApp.Name && text.FontSize == 22);
+                var management = Descendants(headerNative).OfType<Button>().Single(button =>
+                    Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(button) == $"Open Windows management settings for {headerApp.Name}");
+                var headingOrigin = heading.TransformToVisual(headerNative).TransformPoint(new Windows.Foundation.Point());
+                var actionOrigin = management.TransformToVisual(headerNative).TransformPoint(new Windows.Foundation.Point());
+                Check(heading.ActualWidth > 0 && heading.ActualHeight > 0 && headingOrigin.Y + heading.ActualHeight <= actionOrigin.Y + 1,
+                    $"At {width}px the application title must remain visible above the action buttons.");
+                Check(management.ActualWidth == 40 && management.ActualHeight == 40 && management.Content is TextBlock,
+                    "Header actions must keep compact icon content and accessible names.");
             }
             // Edit actual native text fields and run the host's next reconciliation pass.
             // Neither an unrelated native row nor its unsaved draft may be replaced.

@@ -14,7 +14,7 @@ using static WinApps.Browser.BrowserUi;
 
 namespace WinApps.Browser;
 
-public sealed record PackageExplorerProps(bool NavigationVisible = true);
+public sealed record PackageExplorerProps(bool NavigationVisible = true, Action<bool>? OnCompactChanged = null);
 
 public sealed class PackageExplorer : Component<PackageExplorerProps>
 {
@@ -92,14 +92,16 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
             void UpdateLayout()
             {
                 if (!observing) return;
-                var width = control.XamlRoot?.Size.Width ?? control.ActualWidth;
+                var width = control.ActualWidth > 0 ? control.ActualWidth : control.XamlRoot?.Size.Width ?? 0;
                 if (width <= 0) return;
-                var next = width < 1000;
+                var next = width < 1100;
                 if (_compactLayout == next) return;
                 _compactLayout = next;
                 compact.Set(next);
+                Props.OnCompactChanged?.Invoke(next);
             }
             void RootChanged(XamlRoot sender, XamlRootChangedEventArgs args) => UpdateLayout();
+            void SizeChanged(object sender, SizeChangedEventArgs args) => UpdateLayout();
             void DetachRoot()
             {
                 if (observedRoot is not null) observedRoot.Changed -= RootChanged;
@@ -114,12 +116,14 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
             }
             void Loaded(object sender, RoutedEventArgs args) => AttachRoot();
             void Unloaded(object sender, RoutedEventArgs args) => DetachRoot();
+            control.SizeChanged += SizeChanged;
             control.Loaded += Loaded;
             control.Unloaded += Unloaded;
             if (control.IsLoaded) AttachRoot();
             return () =>
             {
                 observing = false;
+                control.SizeChanged -= SizeChanged;
                 control.Loaded -= Loaded;
                 control.Unloaded -= Unloaded;
                 DetachRoot();
@@ -311,25 +315,36 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
             finally { if (ReferenceEquals(_actionCancellation, cancellation)) { _actionCancellation = null; actionBusy.Set(false); } }
         }
 
-        void OpenFolder(string path)
+        async void OpenFolder(string path)
         {
             try
             {
-                if (!Directory.Exists(path)) { NotifyAction("Folder is unavailable or does not exist."); return; }
-                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+                var message = await Task.Run(() =>
+                {
+                    if (!Directory.Exists(path)) return "Folder is unavailable or does not exist.";
+                    Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+                    return (string?)null;
+                });
+                await ui;
+                if (message is not null) NotifyAction(message);
             }
-            catch (Exception ex) { NotifyAction($"Cannot open folder: {ex.Message}"); }
+            catch (Exception ex) { await ui; NotifyAction($"Cannot open folder: {ex.Message}"); }
         }
 
-        void OpenFile(AppDataFile item)
+        async void OpenFile(AppDataFile item)
         {
             try
             {
-                if (!File.Exists(item.FullPath)) { NotifyAction("File is unavailable or no longer exists."); return; }
-                Process.Start(new ProcessStartInfo(item.FullPath) { UseShellExecute = true, Verb = "open" });
-                NotifyAction($"Opened {item.RelativePath} with its default application.");
+                var message = await Task.Run(() =>
+                {
+                    if (!File.Exists(item.FullPath)) return "File is unavailable or no longer exists.";
+                    Process.Start(new ProcessStartInfo(item.FullPath) { UseShellExecute = true, Verb = "open" });
+                    return $"Opened {item.RelativePath} with its default application.";
+                });
+                await ui;
+                NotifyAction(message);
             }
-            catch (Exception ex) { NotifyAction($"Cannot open file with its default application: {ex.Message}"); }
+            catch (Exception ex) { await ui; NotifyAction($"Cannot open file with its default application: {ex.Message}"); }
         }
 
         void OpenView(string next) { _actionCancellation?.Cancel(); _actionCancellation = null; actionBusy.Set(false); view.Set(next); file.Set(null); }

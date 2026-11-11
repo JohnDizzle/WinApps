@@ -60,8 +60,7 @@ internal static class RunningApplications
                     if (app is null && (handle == IntPtr.Zero || title.Length == 0)) continue;
                     if (app is null && process.ProcessName.Equals("ApplicationFrameHost", StringComparison.OrdinalIgnoreCase)) continue;
                     if (app is not null && folder is null && app.ExecutablePath is null) continue;
-                    string path;
-                    try { path = process.MainModule?.FileName ?? ""; } catch { path = ""; }
+                    var path = ProcessImagePath.Read(process.Id);
                     if (app is not null)
                     {
                         if (string.IsNullOrWhiteSpace(app.FamilyName))
@@ -106,7 +105,7 @@ internal static class RunningApplications
             using var process = Process.GetProcessById(item.Id);
             if (process.Id == Environment.ProcessId) return "WinApps cannot close itself through this action.";
             if (process.StartTime.ToUniversalTime().Ticks != item.Started ||
-                !string.Equals(process.MainModule?.FileName, item.Path, StringComparison.OrdinalIgnoreCase))
+                !string.Equals(ProcessImagePath.Read(process.Id), item.Path, StringComparison.OrdinalIgnoreCase))
                 return "The process changed. Refresh and try again.";
             var window = new Windows.Win32.Foundation.HWND(item.WindowHandle);
             if (item.WindowHandle == 0 || !ApplicationWindows.IsAppWindow(window) || !ApplicationWindows.BelongsTo(window, item.Id))

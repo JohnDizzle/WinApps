@@ -202,6 +202,11 @@ try
         "Notification stacks must remain bounded and retain the newest messages.");
     notifications.Expire(noticeTime.AddSeconds(16));
     Check(notifications.Entries.Count == 0, "Every notification must expire independently.");
+    var redundantChanges = 0;
+    notifications.Changed += () => redundantChanges++;
+    notifications.Dismiss(-1);
+    notifications.Expire(noticeTime.AddSeconds(17));
+    Check(redundantChanges == 0, "Closing an expired or removed notice must not trigger another render.");
     var placementPath = Path.Combine(root, "window.json");
     var placementStore = new WindowPlacementStore(placementPath);
     Check(placementStore.Load() is null, "Missing placement must use startup defaults.");

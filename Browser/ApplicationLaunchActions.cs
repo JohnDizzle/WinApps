@@ -48,14 +48,14 @@ internal sealed class ApplicationLaunchActions : Component<ApplicationLaunchActi
         }
         return VStack(4,
             HStack(8,
-                Button(HStack(6, FluentGlyph("\uE768"), TextBlock(Props.App.ConsolePath is null ? "Launch" : "Launch tool")), () => Launch(false))
-                    .AutomationName($"Launch {Props.App.Name}").IsEnabled(!busy.Value && !removed.Value && ApplicationLauncher.CanLaunch(Props.App)).CornerRadius(9).Padding(10),
+                HeaderIconButton("\uE768", $"Launch {Props.App.Name}", () => Launch(false))
+                    .AutomationName($"Launch {Props.App.Name}").IsEnabled(!busy.Value && !removed.Value && ApplicationLauncher.CanLaunch(Props.App)),
                 Component<ApplicationCloseAction, ApplicationCloseActionProps>(new(Props.App)).WithKey($"close-{Props.App.FullName}"),
-                Button(HStack(6, FluentGlyph("\uE74D"), TextBlock("Uninstall")), () => confirmUninstall.Set(true))
+                HeaderIconButton("\uE74D", $"Uninstall {Props.App.Name}", () => confirmUninstall.Set(true))
                     .AutomationName($"Uninstall {Props.App.Name}").IsEnabled(!busy.Value && !removed.Value)
-                    .CornerRadius(9).Padding(10).WithKey("uninstall").IsVisible(packaged),
-                Button(HStack(6, FluentGlyph("\uE7BA"), TextBlock("Launch elevated")), () => Launch(true))
-                        .AutomationName($"Launch {Props.App.Name} as administrator").IsEnabled(!busy.Value && !removed.Value).CornerRadius(9).Padding(10)
+                    .WithKey("uninstall").IsVisible(packaged),
+                HeaderIconButton("\uE7BA", $"Launch {Props.App.Name} as administrator", () => Launch(true))
+                        .AutomationName($"Launch {Props.App.Name} as administrator").IsEnabled(!busy.Value && !removed.Value)
                         .IsVisible(ApplicationLauncher.CanLaunchElevated(Props.App) && (!packaged || Props.Configuration?.Launch?.AllowsElevation == true))
                         .ToolTip("Manifest declares allowElevation. Windows will request administrator approval.").WithKey("elevated-launch")),
             (ContentDialog($"Uninstall {Props.App.Name}?",

@@ -18,14 +18,27 @@ internal sealed class StackBehaviorNotification : Component
         var entries = UseState(Queue.Entries);
         UseEffect(() =>
         {
-            void Update() => entries.Set(Queue.Entries);
+            var dispatcher = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+            var disposed = false;
+            var pending = 0;
+            void Update()
+            {
+                // Notices may be published by a render effect or a Closed event.
+                // Never reenter Reactor while it is reconciling the current tree.
+                if (System.Threading.Interlocked.Exchange(ref pending, 1) != 0) return;
+                if (!dispatcher.TryEnqueue(() =>
+                {
+                    System.Threading.Interlocked.Exchange(ref pending, 0);
+                    if (!disposed) entries.Set(Queue.Entries);
+                })) System.Threading.Interlocked.Exchange(ref pending, 0);
+            }
             Queue.Changed += Update;
             Update();
             var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
             void Tick(object? sender, object args) => Queue.Expire(DateTimeOffset.UtcNow);
             timer.Tick += Tick;
             timer.Start();
-            return () => { Queue.Changed -= Update; timer.Stop(); timer.Tick -= Tick; };
+            return () => { disposed = true; Queue.Changed -= Update; timer.Stop(); timer.Tick -= Tick; };
         }, Array.Empty<object>());
 
         return VStack(8, entries.Value.Select(entry =>

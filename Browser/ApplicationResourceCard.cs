@@ -2,6 +2,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
+using Microsoft.UI.Reactor.Layout;
 using WinApps.Models;
 using WinApps.Services.Inventory;
 using static Microsoft.UI.Reactor.Factories;
@@ -76,15 +77,16 @@ internal sealed class ApplicationResourceCard : Component<ApplicationResourceCar
         Element Metric(string value, string label) => ActivityCardStyle.Surface(VStack(4,
             TextBlock(value).FontSize(22).SemiBold().TextWrapping().Set(control => { control.TextAlignment = TextAlignment.Center; _labels[label] = control; }),
             TextBlock(label).Foreground(Theme.SecondaryText).Set(control => control.TextAlignment = TextAlignment.Center)).Padding(12))
-            .Margin(right: 8).MinWidth(0).Flex(grow: 1, basis: 0);
+            .MinWidth(145).Flex(grow: 1, basis: 145);
         return ActivityCardStyle.Section("Resource footprint · live",
-            HStack(10, AppIcon(Props.App, 24), TextBlock(Props.App.Name).FontSize(16).SemiBold().TextWrapping(),
+            (FlexRow(AppIcon(Props.App, 24), TextBlock(Props.App.Name).FontSize(16).SemiBold().TextWrapping(),
             HStack(6, TextBlock("●").Set(control => _labels["light"] = control),
-                TextBlock(state).FontSize(12).Set(control => _labels["state"] = control))),
-            FlexRow(
+                TextBlock(state).FontSize(12).Set(control => _labels["state"] = control))) with { Wrap = FlexWrap.Wrap, ColumnGap = 10, RowGap = 6 }),
+            (FlexRow(
                 Metric(_loading || _failed ? "—" : $"{items.Sum(item => item.Memory) / 1048576d:N1} MiB", "RAM"),
                 Metric(_loading || _failed ? "—" : items.Any(item => item.CpuPercent is null) ? "Sampling…" : $"{items.Sum(item => item.CpuPercent ?? 0):N1}%", "CPU"),
-                Metric(items.Length.ToString(), "Processes"), Metric(items.Sum(item => item.Threads).ToString(), "Threads")))
+                Metric(items.Length.ToString(), "Processes"), Metric(items.Sum(item => item.Threads).ToString(), "Threads")) with
+                { Wrap = FlexWrap.Wrap, ColumnGap = 8, RowGap = 8 }))
             .Set(_ => UpdateLabels())
             .ToolTip("Updates every 5 seconds. RAM is working set; CPU is a percentage of total processor capacity. Executables match the install folder; shared folders may include other apps.");
     }

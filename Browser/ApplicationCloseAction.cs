@@ -92,8 +92,8 @@ internal sealed class ApplicationCloseAction : Component<ApplicationCloseActionP
             menu.ShowAt(_closeButton);
         }
         return VStack(0,
-            Button(HStack(6, FluentGlyph("\uE711"), TextBlock("Close")), ChooseWindow)
-                .AutomationName($"Close {Props.App.Name}").CornerRadius(9).Padding(10)
+            HeaderIconButton("\uE711", $"Close {Props.App.Name}", ChooseWindow)
+                .AutomationName($"Close {Props.App.Name}")
                 .IsEnabled(!busy.Value).IsVisible(_processes.Length > 0)
                 .Set(control => _closeButton = control),
             (ContentDialog($"Close {Props.App.Name}?", VStack(8,

@@ -187,7 +187,7 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                     FlexRow(TextBlock("File").SemiBold().Flex(grow: 1, basis: 0),
                         TextBlock("Size · Type · Modified").SemiBold().Width(260).Margin(left: 12).Flex(shrink: 0),
                         TextBlock("Open").Width(40).Margin(left: 8).Flex(shrink: 0)).FlexPadding(8).IsVisible(!Props.Compact),
-                    VStack(6, files.Select(item => Border(((Props.Compact ? FlexColumn() : FlexRow()) with { Children = new Element[] {
+                    VStack(6, files.Select(item => Border((FlexColumn() with { Children = new Element[] {
                         FilePreviewButton(item).Flex(grow: 1, basis: 0),
                         VStack(2, Text($"{item.Bytes:N0} bytes · {item.Kind}"),
                             TextBlock(item.LastWriteUtc.ToLocalTime().ToString("g")).FontSize(12).Foreground(Theme.SecondaryText))
@@ -212,9 +212,9 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
 
         return
                 FlexColumn(
-                    Border(VStack(8,
-                    (Props.Compact ? FlexColumn() : FlexRow()) with { Children = new Element[] {
-                        HStack(12,
+                    Border(VStack(16,
+                    FlexColumn() with { Children = new Element[] {
+                        (FlexRow(
                             Slot("back-home", selected is not null && Props.OnClearSelection is not null
                                 ? GlassButton(Button(FluentGlyph("\uE72B"), () => { }))
                                     .Width(36).Height(36).Padding(0).CornerRadius(9).AutomationName("Back to applications")
@@ -222,14 +222,14 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                                     .Set(AttachBackButton)
                                 : Text("").IsVisible(false)),
                             Slot("heading-icon", selected is null ? Icon(FontIcon("\uE71D", "Segoe Fluent Icons")).Width(32).Height(32) : AppIcon(selected, 32)),
-                            VStack(4, TextBlock(selected?.Name ?? "WinApps").FontSize(22).SemiBold(),
+                            VStack(4, TextBlock(selected?.Name ?? "WinApps").FontSize(22).SemiBold().TextWrapping(),
                                 TextBlock(selected is null ? activitySummary.Value :
                                     selected.ConsolePath is not null ? "Windows administrative tool · This PC" :
                                     string.IsNullOrWhiteSpace(selected.FamilyName) ? "Desktop application · This PC" : "Packaged application · This PC")
                                     .FontSize(12).TextWrapping().Foreground(Theme.SecondaryText),
                                 TextBlock(status).FontSize(12).TextWrapping().Foreground(Theme.SecondaryText)
-                                    .IsVisible(selected is null)))
-                            .Margin(bottom: selected is not null && Props.Compact ? 12 : 0).Flex(grow: 1, basis: 0),
+                                    .IsVisible(selected is null)).MinWidth(0).Flex(grow: 1, basis: 0)) with { ColumnGap = 12 })
+                            .Margin(bottom: selected is not null ? 16 : 0).MinWidth(0),
                         HStack(8, Slot("app-management", selected is not null && selected.ConsolePath is null ? Component<ApplicationManagementPanel, ApplicationManagementPanelProps>(new(selected))
                             .WithKey($"management-{selected.FullName}") : Text("")),
                         Slot("launch-actions", selected is not null ? Component<ApplicationLaunchActions, ApplicationLaunchActionsProps>(new(selected, packageConfiguration, Props.OnUninstalled))
@@ -254,15 +254,15 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                             control.VerticalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollingScrollBarVisibility.Hidden;
                         }).CornerRadius(1).MinWidth(0).Margin(right: 12).Flex(grow: 1, basis: 0),
                     Border(HStack(8,
-                    ActionButton("Reload resources", ReloadResources).Padding(10)
+                    HeaderIconButton("\uE72C", "Reload resources", ReloadResources)
                         .ToolTip(UiResources.FilePath),
-                    Button(FluentGlyph("\uE74A"), BackToTop)
-                        .AutomationName("Back to top").Padding(10).CornerRadius(9)
+                    HeaderIconButton("\uE74A", "Back to top", BackToTop)
+                        .AutomationName("Back to top")
                         .ToolTip("Back to top")
                         .Background(Theme.LayerFill).WithBorder(Theme.CardStroke)))
                         .Padding(4).VAlign(VerticalAlignment.Top).Flex(shrink: 0)),
                     Component<TransientActionNotice, TransientActionNoticeProps>(new(resourceStatus.Value, resourceVersion.Value)).WithKey("resource-notice")
-                    ).Padding(12)).Background(Theme.CardBackground).WithBorder(Theme.CardStroke).CornerRadius(12)
+                    ).Padding(Props.Compact ? 16 : 24)).Background(Theme.CardBackground).WithBorder(Theme.CardStroke).CornerRadius(12)
                         .Margin(left: padding, top: 12, right: padding).Flex(shrink: 0),
                 ScrollView(VStack(12,
                     VStack(0,

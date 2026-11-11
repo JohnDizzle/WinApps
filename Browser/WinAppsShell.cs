@@ -66,7 +66,7 @@ internal sealed class WinAppsShell : Component
                 .AutoRefreshDragRegions(true).Flex(shrink: 0),
             FlexColumn(
             Component<SuggestionPolicyNotice>().WithKey("suggestion-policy-notice").Flex(shrink: 0),
-            ErrorBoundary(Component<PackageExplorer, PackageExplorerProps>(new(navigationVisible.Value)).WithKey($"explorer-{attempt.Value}"), error =>
+            ErrorBoundary(Component<PackageExplorer, PackageExplorerProps>(new(navigationVisible.Value, compact => navigationVisible.Set(!compact))).WithKey($"explorer-{attempt.Value}"), error =>
                 Component<ErrorRecoveryPanel, ErrorRecoveryPanelProps>(new("WinApps couldn't display this view", error,
                     () => attempt.Set(attempt.Value + 1), null)))
                 .WithKey("app-recovery").Flex(grow: 1, basis: 0)).MinHeight(0).Flex(grow: 1, basis: 0)

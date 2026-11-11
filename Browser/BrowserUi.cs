@@ -41,6 +41,10 @@ internal static class BrowserUi
     public static Element FluentGlyph(string glyph, double size = 16) => TextBlock(glyph)
             .Set(control => { control.FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Segoe Fluent Icons"); control.FontSize = size; })
             .VAlign(VerticalAlignment.Center).HAlign(HorizontalAlignment.Center);
+    public static ButtonElement HeaderIconButton(string glyph, string label, Action action) =>
+        GlassButton(Button(FluentGlyph(glyph, 18), action))
+            .Width(40).Height(40).Padding(0).CornerRadius(9)
+            .AutomationName(label).ToolTip(label);
     public static ButtonElement ActionButton(string label, Action action) => Button(HStack(8,
             FluentGlyph(ActionGlyph(label), 18).Width(24).Height(24), TextBlock(label).TextWrapping()), action)
             .AutomationName(label)

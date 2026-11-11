@@ -26,7 +26,11 @@ public sealed class NotificationQueue
 
     public void Dismiss(long id)
     {
-        Entries = Entries.Where(entry => entry.Id != id).ToArray();
+        var remaining = Entries.Where(entry => entry.Id != id).ToArray();
+        // Removing an InfoBar can also raise Closed. Do not trigger another render
+        // when expiration or an earlier close already removed this entry.
+        if (remaining.Length == Entries.Count) return;
+        Entries = remaining;
         Changed?.Invoke();
     }
 }

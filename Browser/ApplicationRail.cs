@@ -215,7 +215,7 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                     .AutomationName($"Files for {app.Name}")
                 : Text("")).IsVisible(app.ConsolePath is null && !Props.Compact && app.FullName == selected?.FullName)
         ).HAlign(HorizontalAlignment.Stretch).Padding(8))
-            .Background(app.FullName == selected?.FullName ? Theme.Ref("ControlFillColorSecondaryBrush") : Theme.Ref("ControlFillColorTransparentBrush"))
+            .Background(Theme.Ref("ControlFillColorTransparentBrush"))
             .WithBorder(app.FullName == selected?.FullName ? Theme.Ref("ControlStrongStrokeColorDefaultBrush") : Theme.Ref("ControlFillColorTransparentBrush"))
             .BorderThickness(1.2)
             .CornerRadius(12).Margin(left: 4, top: 2, right: 8, bottom: 2).HAlign(HorizontalAlignment.Stretch)
@@ -253,12 +253,16 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                 control.DispatcherQueue.TryEnqueue(() =>
                     {
                         var current = Props.Selected;
-                        if (current is null) { control.SelectedIndex = -1; return; }
+                        if (current is null) { if (control.SelectedIndex != -1) control.SelectedIndex = -1; return; }
                         var index = Array.FindIndex(actions.Apps, app => app.FullName == current.FullName);
                         if (index >= 0 && index < control.Items.Count)
                         {
-                            control.SelectedIndex = index;
-                            if (Props.Compact) control.ScrollIntoView(control.Items[index]);
+                            if (control.SelectedIndex != index) control.SelectedIndex = index;
+                            if (Props.Compact && _pendingRevealKey == current.FullName)
+                            {
+                                _pendingRevealKey = null;
+                                control.ScrollIntoView(control.Items[index]);
+                            }
                             // Measure the expanded files before consuming the pending reveal.
                             // A direct call here can still see the previous row height.
                             _railScroll?.UpdateLayout();
@@ -279,10 +283,7 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                         new Setter(Microsoft.UI.Xaml.Controls.Control.BorderBrushProperty, new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent))
                     }
                 };
-                var transparent = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
-                foreach (var key in new[] { "ListViewItemBackgroundSelected", "ListViewItemBackgroundSelectedPointerOver",
-                    "ListViewItemBackgroundSelectedPressed", "ListViewItemBackgroundPointerOver", "ListViewItemBackgroundPressed" })
-                    control.Resources[key] = transparent;
+                // Preserve the native theme's hover, pressed, and selected states.
                 Microsoft.UI.Xaml.Controls.ScrollViewer.SetHorizontalScrollMode(control, Microsoft.UI.Xaml.Controls.ScrollMode.Disabled);
                 Microsoft.UI.Xaml.Controls.ScrollViewer.SetHorizontalScrollBarVisibility(control, Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Disabled);
                 Microsoft.UI.Xaml.Controls.ScrollViewer.SetVerticalScrollMode(control, Props.Compact
@@ -344,7 +345,6 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                             control.ExtentChanged += (_, _) => FollowSelection();
                             control.ViewChanged += (_, _) =>
                             {
-                                FollowSelection();
                                 if (control.VerticalOffset > 0 && appsListOpen.Value) appsListOpen.Set(false);
                             };
                             control.AddHandler(UIElement.PointerWheelChangedEvent,
@@ -537,6 +537,9 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
         if (position.Y + row.ActualHeight > _railScroll.ExtentHeight + 1) return;
         if (position.Y > _railScroll.ViewportHeight && _railScroll.ScrollableHeight <= 0) return;
         _pendingRevealKey = null;
+        // File loading can require one further reveal, but ordinary scrolling and
+        // subsequent layout updates must not keep anchoring the selected row.
+        _followSelection = Props.Loading || Props.Inventory is null || !_lastFilesOpen;
         var target = Math.Clamp(position.Y - 8, 0, _railScroll.ScrollableHeight);
         if (Math.Abs(_railScroll.VerticalOffset - target) < 1) return;
         _railScroll.ScrollTo(0, target,

@@ -48,13 +48,13 @@ internal sealed class ApplicationManagementPanel : Component<ApplicationManageme
 
         return VStack(4,
             HStack(8,
-            Button(HStack(6, FluentGlyph("\uE713"), TextBlock("Installed apps")), OpenSettings)
+            HeaderIconButton("\uE713", $"Open Installed apps for {Props.App.Name}", OpenSettings)
                 .AutomationName($"Open Windows management settings for {Props.App.Name}")
-                .IsEnabled(!busy.Value).CornerRadius(9).Padding(10)
+                .IsEnabled(!busy.Value)
                 .ToolTip(packaged ? $"Open Installed apps, search for {Props.App.Name}, then choose Advanced options where supported."
                         : "Open Installed apps, then search by name. This shortcut has no package management identity."),
-            Button("Copy app name", CopyName).IsEnabled(!busy.Value)
-                .AutomationName($"Copy {Props.App.Name} for Installed apps search").CornerRadius(9).Padding(10)),
+            HeaderIconButton("\uE8C8", $"Copy {Props.App.Name} for Installed apps search", CopyName).IsEnabled(!busy.Value)
+                .AutomationName($"Copy {Props.App.Name} for Installed apps search")),
             Component<TransientActionNotice, TransientActionNoticeProps>(new(message.Value, noticeVersion.Value)).WithKey("management-notice"));
     }
     // The appsfeatures-app query can ignore the target and open the caller's own
