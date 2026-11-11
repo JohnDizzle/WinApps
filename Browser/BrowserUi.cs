@@ -50,14 +50,10 @@ internal static class BrowserUi
                 .Width(32).Height(32).Padding(0).CornerRadius(9)
                 .Background(Theme.LayerFill).WithBorder(Theme.CardStroke)
                 .IsEnabled(!busy)
-                .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, FileTooltip(item, "Open with default app")));
-    public static Microsoft.UI.Xaml.Controls.TextBlock FileTooltip(AppDataFile item, string? action = null) => new()
-        {
-            Text = $"{Path.GetFileName(item.FullPath)}\n{item.Kind}\nSize: {item.Bytes:N0} bytes\nModified: {item.LastWriteUtc.ToLocalTime():g}\nLocation: {item.FullPath}" +
-                (action is null ? "" : $"\n{action}"),
-            TextWrapping = TextWrapping.Wrap,
-            MaxWidth = 420
-        };
+                .WithToolTip(FileTooltip(item, "Open with default app"));
+    public static Element FileTooltip(AppDataFile item, string? action = null) =>
+        TextBlock($"{Path.GetFileName(item.FullPath)}\n{item.Kind}\nSize: {item.Bytes:N0} bytes\nModified: {item.LastWriteUtc.ToLocalTime():g}\nLocation: {item.FullPath}" +
+            (action is null ? "" : $"\n{action}")).TextWrapping().MaxWidth(420);
     public static ButtonElement FilePreviewButton(AppDataFile item, Action<AppDataFile> preview, bool busy, bool showDetails = false) => Button(
             (FlexRow(
                 FluentGlyph("\uE8A5", 16).Width(20).Height(24).Flex(shrink: 0),
@@ -68,11 +64,8 @@ internal static class BrowserUi
             .AutomationName($"Inspect {item.RelativePath}").IsEnabled(!busy)
             .HAlign(HorizontalAlignment.Stretch).Padding(8).CornerRadius(9)
             .Background(Theme.LayerFill).WithBorder(Theme.CardStroke)
-            .Set(control =>
-            {
-                control.HorizontalContentAlignment = HorizontalAlignment.Stretch;
-                Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, FileTooltip(item));
-            });
+            .WithToolTip(FileTooltip(item))
+            .Set(control => control.HorizontalContentAlignment = HorizontalAlignment.Stretch);
 
     public static Element AppIcon(InstalledApp app, double size = 32) => app.IconUri is null
             ? Icon(FontIcon("\uE71D", "Segoe Fluent Icons")).Width(size).Height(size)

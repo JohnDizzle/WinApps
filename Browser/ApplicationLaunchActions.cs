@@ -57,10 +57,7 @@ internal sealed class ApplicationLaunchActions : Component<ApplicationLaunchActi
                 Button(HStack(6, FluentGlyph("\uE7BA"), TextBlock("Launch elevated")), () => Launch(true))
                         .AutomationName($"Launch {Props.App.Name} as administrator").IsEnabled(!busy.Value && !removed.Value).CornerRadius(9).Padding(10)
                         .IsVisible(ApplicationLauncher.CanLaunchElevated(Props.App) && (!packaged || Props.Configuration?.Launch?.AllowsElevation == true))
-                        .Set(control =>
-                        {
-                            Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Manifest declares allowElevation. Windows will request administrator approval.");
-                        }).WithKey("elevated-launch")),
+                        .ToolTip("Manifest declares allowElevation. Windows will request administrator approval.").WithKey("elevated-launch")),
             (ContentDialog($"Uninstall {Props.App.Name}?",
                 Text("This removes the package for this Windows user, including other applications in the same package, and may delete its local data."), "Uninstall") with
             {

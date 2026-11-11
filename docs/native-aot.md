@@ -29,7 +29,7 @@ For ARM64, pass `-Runtime win-arm64` and validate the published executable on AR
 - CsWin32 is configured without runtime marshalling. Native callbacks use `UnmanagedCallersOnly` entry points with explicit lifetime management.
 - Inspector rows use `GeneratedBindableCustomProperty` metadata for runtime XAML bindings.
 - Reactor core, Advanced (Markdown), and development tools use matching preview.17 packages. This replaces preview.12's Native AOT-incompatible unpackaged Jump List COM path and includes the publish-resource copying fix.
-- New Reactor analyzers may report existing UI styling/pooling/event-registration warnings; those are separate from IL trimming/AOT diagnostics.
+- Reactor UI lifecycle, pooling, visibility, and modifier diagnostics are enforced as errors for Browser sources. UI subscriptions use declarative event modifiers or effect cleanup; reconciled properties use the DSL. See [UI lifecycle conventions](architecture.md#reactor-lifecycle-and-ui-properties).
 
 ## Build, publish, and package are different
 

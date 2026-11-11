@@ -2,8 +2,6 @@
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
 using WinApps.Models;
-using System.Diagnostics;
-using System.Text.Encodings.Web;
 using static Microsoft.UI.Reactor.Factories;
 using static WinApps.Browser.BrowserUi;
 
@@ -29,7 +27,8 @@ internal sealed class ApplicationManagementPanel : Component<ApplicationManageme
             {
                 var opened = await OpenManagementAsync(Props.App, uri => Windows.System.Launcher.LaunchUriAsync(uri).AsTask());
                 ShowMessage(!opened ? "Windows couldn't open app settings. Open Settings → Apps → Installed apps."
-                    : packaged ? "" : $"Search Installed apps for {Props.App.Name}. Start menu shortcuts may not have an installed-app entry.");
+                    : packaged ? $"Search Installed apps for {Props.App.Name}, then choose ⋯ → Advanced options where available."
+                    : $"Search Installed apps for {Props.App.Name}. Start menu shortcuts may not have an installed-app entry.");
             }
             catch (Exception error) { ShowMessage($"Couldn't open Windows Settings: {error.Message}"); }
             finally { busy.Set(false); }
@@ -49,25 +48,19 @@ internal sealed class ApplicationManagementPanel : Component<ApplicationManageme
 
         return VStack(4,
             HStack(8,
-            Button(HStack(6, FluentGlyph("\uE713"), TextBlock(packaged ? "Advanced options" : "Installed apps")), OpenSettings)
+            Button(HStack(6, FluentGlyph("\uE713"), TextBlock("Installed apps")), OpenSettings)
                 .AutomationName($"Open Windows management settings for {Props.App.Name}")
                 .IsEnabled(!busy.Value).CornerRadius(9).Padding(10)
-                .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control,
-                    packaged ? $"Open {Props.App.Name}'s Advanced options in Windows Settings for permissions, repair, reset, and uninstall where supported."
-                        : "Open Installed apps, then search by name. This shortcut has no package management identity.")),
-            Button("Copy app name", CopyName).IsVisible(!packaged).IsEnabled(!busy.Value)
+                .ToolTip(packaged ? $"Open Installed apps, search for {Props.App.Name}, then choose Advanced options where supported."
+                        : "Open Installed apps, then search by name. This shortcut has no package management identity."),
+            Button("Copy app name", CopyName).IsEnabled(!busy.Value)
                 .AutomationName($"Copy {Props.App.Name} for Installed apps search").CornerRadius(9).Padding(10)),
             Component<TransientActionNotice, TransientActionNoticeProps>(new(message.Value, noticeVersion.Value)).WithKey("management-notice"));
     }
-    internal static Uri ManagementUri(InstalledApp app) => new(string.IsNullOrWhiteSpace(app.FamilyName)
-        ? "ms-settings:appsfeatures" : $"ms-settings:appsfeatures-app?{Uri.EscapeDataString(app.FamilyName)}");
-    internal static async Task<bool> OpenManagementAsync(InstalledApp app, Func<Uri, Task<bool>> launch)
-    {
-        var target = ManagementUri(app);
+    // The appsfeatures-app query can ignore the target and open the caller's own
+    // settings. Never use it to manage another app (MicrosoftDocs/windows-dev-docs#3688).
+    internal static Uri ManagementUri(InstalledApp app) => new("ms-settings:appsfeatures");
 
-        try { if (await launch(target)) return true; }
-        catch (Exception) when (!string.IsNullOrWhiteSpace(app.FamilyName)) { }
-        if (string.IsNullOrWhiteSpace(app.FamilyName)) return false;
-        return await launch(new Uri("ms-settings:appsfeatures"));
-    }
+    internal static Task<bool> OpenManagementAsync(InstalledApp app, Func<Uri, Task<bool>> launch)
+        => launch(ManagementUri(app));
 }

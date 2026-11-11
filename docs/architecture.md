@@ -31,3 +31,11 @@ Library metadata is cached locally. Files, decoded settings, and manifest config
 Keep Windows calls in services and pure parsers/codecs independently testable. Launch actions must resolve the selected registered application, and elevation must be checked again against the installed manifest before invoking UAC.
 
 `WinAppsShell` and the rail/detail boundaries contain display errors. Recovery panels offer retry, restart, and navigation with collapsed technical details. Conditional controls live in stable containers with native-type-specific child keys. Ordinary value changes preserve component identities; explicit retry rebuilds only the failed area.
+
+## Reactor lifecycle and UI properties
+
+Use declarative event modifiers such as `PaneToggleRequested` and `OnSizeChanged` when Reactor provides them. Let the renderer replace and detach those handlers. For native events without a declarative bridge, subscribe in a component-owned `UseEffect` and return cleanup that removes the named handlers. The explorer's `Loaded`, `Unloaded`, and `XamlRoot.Changed` bridge follows this pattern and detaches from the old root on unload and component unmount.
+
+Use `ToolTip` / `WithToolTip`, `ItemStatus`, `BorderThickness`, and `IsVisible` for reconciled properties. Keep `.Set(...)` for native configuration without an equivalent DSL modifier or for capturing control references, rather than attaching lifetime-owned subscriptions. Flex layout uses `FlexPadding`; rounded backgrounds and borders belong on a native `Border` wrapping the flex content.
+
+The four Reactor diagnostics covering these mistakes are errors for Browser sources in `.editorconfig`. They must be fixed rather than suppressed. These conventions follow [Reactor's effect lifecycle](https://github.com/microsoft/microsoft-ui-reactor/blob/main/docs/guide/hooks.md#useeffect) and [Microsoft's event unsubscription guidance](https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/events/how-to-subscribe-to-and-unsubscribe-from-events).

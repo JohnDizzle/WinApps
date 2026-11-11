@@ -82,6 +82,49 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
         var railAttempt = UseState(0);
         var detailAttempt = UseState(0);
         var compact = UseState(false);
+        var layoutHost = UseRef<FrameworkElement?>(null);
+        UseEffect(() =>
+        {
+            var control = layoutHost.Current;
+            if (control is null) return () => { };
+            XamlRoot? observedRoot = null;
+            var observing = true;
+            void UpdateLayout()
+            {
+                if (!observing) return;
+                var width = control.XamlRoot?.Size.Width ?? control.ActualWidth;
+                if (width <= 0) return;
+                var next = width < 1000;
+                if (_compactLayout == next) return;
+                _compactLayout = next;
+                compact.Set(next);
+            }
+            void RootChanged(XamlRoot sender, XamlRootChangedEventArgs args) => UpdateLayout();
+            void DetachRoot()
+            {
+                if (observedRoot is not null) observedRoot.Changed -= RootChanged;
+                observedRoot = null;
+            }
+            void AttachRoot()
+            {
+                DetachRoot();
+                observedRoot = control.XamlRoot;
+                if (observedRoot is not null) observedRoot.Changed += RootChanged;
+                UpdateLayout();
+            }
+            void Loaded(object sender, RoutedEventArgs args) => AttachRoot();
+            void Unloaded(object sender, RoutedEventArgs args) => DetachRoot();
+            control.Loaded += Loaded;
+            control.Unloaded += Unloaded;
+            if (control.IsLoaded) AttachRoot();
+            return () =>
+            {
+                observing = false;
+                control.Loaded -= Loaded;
+                control.Unloaded -= Unloaded;
+                DetachRoot();
+            };
+        });
         var actionNotice = UseState("");
         var actionNoticeVersion = UseState(0);
         void NotifyAction(string text) { actionNoticeVersion.Set(actionNoticeVersion.Value + 1); actionNotice.Set(text); }
@@ -327,31 +370,10 @@ public sealed class PackageExplorer : Component<PackageExplorerProps>
                 .Margin(20)
         ]).HAlign(HorizontalAlignment.Stretch).MinWidth(0).Set(control =>
         {
+            layoutHost.Current = control;
             if (window?.NativeWindow is { } mainWindow)
                 CompactSearchWindowController.Update(mainWindow, apps.Value, _viewHistory.MostViewed(apps.Value), busy.Value ? null : Select, _viewHistory,
                     selected.Value?.FullName, inspecting.Value, libraryReady.Value);
-            if (control.Tag as string == "responsive-explorer") return;
-            control.Tag = "responsive-explorer";
-            XamlRoot? observedRoot = null;
-            void UpdateLayout()
-            {
-                var next = (control.XamlRoot?.Size.Width ?? control.ActualWidth) < 1000;
-                if (_compactLayout == next) return;
-                _compactLayout = next;
-                compact.Set(next);
-            }
-            void RootChanged(XamlRoot sender, XamlRootChangedEventArgs args) => UpdateLayout();
-            control.Loaded += (_, _) =>
-            {
-                observedRoot = control.XamlRoot;
-                if (observedRoot is not null) observedRoot.Changed += RootChanged;
-                UpdateLayout();
-            };
-            control.Unloaded += (_, _) =>
-            {
-                if (observedRoot is not null) observedRoot.Changed -= RootChanged;
-                observedRoot = null;
-            };
         });
     }
 }

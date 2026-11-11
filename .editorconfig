@@ -14,6 +14,13 @@ indent_size = 2
 [*.md]
 trim_trailing_whitespace = false
 
+[Browser/*.cs]
+# Reactor owns reconciled properties and declarative event subscriptions.
+dotnet_diagnostic.REACTOR_POOL_001.severity = error
+dotnet_diagnostic.REACTOR_EVENT_001.severity = error
+dotnet_diagnostic.REACTOR_MOD_003.severity = error
+dotnet_diagnostic.REACTOR_VIS_001.severity = error
+
 [docs/licenses/*.txt]
 trim_trailing_whitespace = false
 insert_final_newline = false

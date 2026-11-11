@@ -9,7 +9,7 @@ flowchart TD
     Select --> Header[App icon, name, type, and actions]
     Select --> Files[App files in the left rail]
     Header --> Properties[Choose a property view]
-    Header --> Manage[Windows Advanced options / Installed apps]
+    Header --> Manage[Windows Installed apps]
     Header --> Launch[Launch packaged application]
 
     Properties --> Overview[Overview]

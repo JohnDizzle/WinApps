@@ -85,11 +85,7 @@ internal sealed class ApplicationResourceCard : Component<ApplicationResourceCar
                 Metric(_loading || _failed ? "—" : $"{items.Sum(item => item.Memory) / 1048576d:N1} MiB", "RAM"),
                 Metric(_loading || _failed ? "—" : items.Any(item => item.CpuPercent is null) ? "Sampling…" : $"{items.Sum(item => item.CpuPercent ?? 0):N1}%", "CPU"),
                 Metric(items.Length.ToString(), "Processes"), Metric(items.Sum(item => item.Threads).ToString(), "Threads")))
-            .Set(control =>
-            {
-                UpdateLabels();
-                Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control,
-                    "Updates every 5 seconds. RAM is working set; CPU is a percentage of total processor capacity. Executables match the install folder; shared folders may include other apps.");
-            });
+            .Set(_ => UpdateLabels())
+            .ToolTip("Updates every 5 seconds. RAM is working set; CPU is a percentage of total processor capacity. Executables match the install folder; shared folders may include other apps.");
     }
 }

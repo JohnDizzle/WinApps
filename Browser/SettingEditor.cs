@@ -102,7 +102,7 @@ internal sealed class SettingEditor : Component<SettingEditorProps>
                 editor = TextBox(value.Value, value.Set).AutomationName(setting.Value.Name);
         }
         return ErrorBoundary(VStack(6,
-            FlexRow(
+            Border(FlexRow(
                 VStack(4, TextBlock(setting.Value.Name).SemiBold().TextWrapping(),
                     TextBlock(setting.Value.Type).FontSize(12).Foreground(Theme.SecondaryText)).Width(220).Flex(shrink: 0),
                 VStack(4,
@@ -112,7 +112,7 @@ internal sealed class SettingEditor : Component<SettingEditorProps>
                         .IsVisible(!editable || valid).WithKey("save-notice"))
                     .Margin(left: 16).Flex(grow: 1, basis: 0),
                 Slot("save-action", editable ? ActionButton("Save", Save).IsEnabled(!Props.Disabled && !saving.Value && valid && value.Value != setting.Value.Value) : Text("Read only"))
-                    .Width(90).Margin(left: 12).Flex(shrink: 0))
+                    .Width(90).Margin(left: 12).Flex(shrink: 0)))
                 .Padding(10).Background(Theme.LayerFill).WithBorder(Theme.CardStroke).CornerRadius(6)).HAlign(Microsoft.UI.Xaml.HorizontalAlignment.Stretch)
                 .WithKey($"setting-body-{attempt.Value}"),
             failure => Component<ErrorRecoveryPanel, ErrorRecoveryPanelProps>(new("This setting couldn't be displayed", failure,

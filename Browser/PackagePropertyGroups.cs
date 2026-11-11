@@ -32,7 +32,7 @@ internal sealed class PackagePropertyGroups : Component<PackagePropertyGroupsPro
                             .Flex(grow: 1, basis: 0),
                         TextBlock(property.Value).TextWrapping().Set(control => control.IsTextSelectionEnabled = true)
                             .Margin(left: 16).Flex(grow: 2, basis: 0))
-                        .Padding(8).Background(Theme.LayerFill).WithKey($"property-{index}")).ToArray()),
+                        .FlexPadding(8).Background(Theme.LayerFill).WithKey($"property-{index}")).ToArray()),
                 Disclosure("Original details · read only", MarkdownContent.Code(section.Details,
                     section.Details.TrimStart().StartsWith('<') ? "xml" : "text", section.Title + " original details")));
         }
@@ -58,18 +58,13 @@ internal sealed class PackagePropertyGroups : Component<PackagePropertyGroupsPro
                     .Set(BrowserMotion.Enable)
                     .AutomationName($"Package layout {option}").WithKey(option)).ToArray()).IsVisible(Props.Layout is null),
             content.WithKey($"layout-{activeLayout}-{columns}"))
-            .Set(control =>
+            .Set(BrowserMotion.Enable)
+            .OnSizeChanged((_, args) =>
             {
-                BrowserMotion.Enable(control);
-                if (control.Tag as string == "property-layout") return;
-                control.Tag = "property-layout";
-                control.SizeChanged += (_, args) =>
-                {
-                    var newColumns = args.NewSize.Width >= 1500 ? 3 : args.NewSize.Width >= 1000 ? 2 : 1;
-                    if (_columnCount == newColumns) return;
-                    _columnCount = newColumns;
-                    width.Set(args.NewSize.Width);
-                };
+                var newColumns = args.NewSize.Width >= 1500 ? 3 : args.NewSize.Width >= 1000 ? 2 : 1;
+                if (_columnCount == newColumns) return;
+                _columnCount = newColumns;
+                width.Set(args.NewSize.Width);
             });
     }
 

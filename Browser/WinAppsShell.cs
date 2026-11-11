@@ -9,7 +9,6 @@ namespace WinApps.Browser;
 
 internal sealed class WinAppsShell : Component
 {
-    private Action? _toggleNavigation;
     public override Element Render()
     {
         var attempt = UseState(0);
@@ -17,32 +16,28 @@ internal sealed class WinAppsShell : Component
         var backdrop = UseState(BackdropKind.MicaAlt);
         var navigationVisible = UseState(true);
         var window = UseWindow();
-        _toggleNavigation = () => navigationVisible.Set(!navigationVisible.Value);
         var darkTheme = theme.Value == ElementTheme.Dark || (theme.Value == ElementTheme.Default &&
             Microsoft.UI.Xaml.Application.Current.RequestedTheme == ApplicationTheme.Dark);
         var appearanceSettings = GlassButton(Button(FluentGlyph("\uE713", 18), () => { }))
             .Width(44).Height(40).Padding(8).CornerRadius(10).AutomationName("Settings")
+            .ToolTip("Settings and about WinApps")
             .Set(control =>
             {
-                Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Settings and about WinApps");
                 control.Flyout = SettingsFlyout.Create(theme.Value, darkTheme, backdrop.Value,
                     () => theme.Set(darkTheme ? ElementTheme.Light : ElementTheme.Dark),
                     kind => backdrop.Set(kind));
             });
 
-        var compactIcon = Icon(PathIcon("M2,2 H4 V20 H22 V22 H2 Z M19,3.6 L20.4,5 L11.4,14 H17 V16 H8 V7 H10 V12.6 Z"))
-            .Width(16).Height(16);
-        var compactButton = GlassButton(Button(compactIcon, () =>
+        var compactButton = MiniModeButton(() =>
             {
                 if (window?.NativeWindow is { } nativeWindow) CompactSearchWindowController.EnterCompactMode(nativeWindow);
-            }))
-            .Width(44).Height(40).Padding(8).CornerRadius(10).AutomationName("Open Mini Mode")
-            .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Open Mini Mode"));
+            });
 
         // Window material and theme must belong to the host root, outside recovery boundaries.
         return WindowFrame(theme.Value,
             TitleBar("WinApps").Height(48)
                 .PaneToggleButtonVisible(true)
+                .PaneToggleRequested(() => navigationVisible.Set(!navigationVisible.Value))
                 .Set(control =>
                 {
                     if (window?.NativeWindow is { } nativeWindow)
@@ -65,9 +60,6 @@ internal sealed class WinAppsShell : Component
                                 Path.Combine(AppContext.BaseDirectory, "Assets", "Square44x44Logo.png")))
                         }
                     };
-                    if (control.Tag as string == "navigation-toggle") return;
-                    control.Tag = "navigation-toggle";
-                    control.PaneToggleRequested += (_, _) => _toggleNavigation?.Invoke();
                 })
                 .RightHeader(HStack(10, compactButton, appearanceSettings)
                     .Margin(left: 8, top: 4, right: 8, bottom: 4).HAlign(HorizontalAlignment.Right))
@@ -80,10 +72,14 @@ internal sealed class WinAppsShell : Component
                 .WithKey("app-recovery").Flex(grow: 1, basis: 0)).MinHeight(0).Flex(grow: 1, basis: 0)
         , backdrop.Value);
     }
+    internal static ButtonElement MiniModeButton(Action open) => GlassButton(Button(FluentGlyph("\uE73F", 18), open))
+        .Width(44).Height(40).Padding(8).CornerRadius(10).AutomationName("Open Mini Mode")
+        .ToolTip("Open Mini Mode");
+
     internal static Element WindowFrame(ElementTheme theme, Element titleBar, Element content, BackdropKind backdrop = BackdropKind.MicaAlt) =>
         FlexColumn(
             Border(titleBar).WithBorder(Theme.Ref("DividerStrokeColorDefaultBrush"))
-                .Set(control => control.BorderThickness = new Thickness(0, 0, 0, 1)).Flex(shrink: 0),
+                .BorderThickness(0, 0, 0, 1).Flex(shrink: 0),
             content).RequestedTheme(theme).Backdrop(backdrop)
             .Set(control =>
             {

@@ -206,10 +206,10 @@ internal sealed class ApplicationActivityPanel : Component<ApplicationActivityPa
                 TextBlock(item.Name).FontSize(17).SemiBold().TextWrapping()
                     .Set(control => { control.MaxLines = 2; control.TextTrimming = TextTrimming.CharacterEllipsis; }).Width(208)),
             TextBlock(item.Title.Length > 0 ? item.Title : "Background process").Height(20)
+                .ToolTip(item.Title)
                 .Foreground(Theme.SecondaryText).Set(control =>
                 {
                     control.TextTrimming = TextTrimming.CharacterEllipsis;
-                    Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, item.Title);
                 }),
             Border(VStack(4,
                 TextBlock($"{item.Memory / 1048576d:N1} MiB").FontSize(24).SemiBold()
@@ -219,20 +219,19 @@ internal sealed class ApplicationActivityPanel : Component<ApplicationActivityPa
             ActivityCardStyle.Badge(_newApps.Contains((item.Id, item.Started)) ? "NEW · SNAPSHOT" : "SNAPSHOT").HAlign(HorizontalAlignment.Left),
             TextBlock($"PID {item.Id}  ·  {item.Threads:N0} threads")
                 .FontSize(12).TextWrapping().Foreground(Theme.SecondaryText)
-                .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control,
-                    $"Started {new DateTime(item.Started, DateTimeKind.Utc).ToLocalTime():g}")),
+                .ToolTip($"Started {new DateTime(item.Started, DateTimeKind.Utc).ToLocalTime():g}"),
             FlexRow(
             GlassButton(Button(FluentGlyph("\uE721", 18),
                 () => { if (hostWindow?.NativeWindow is { } owner) WindowInspectorWindow.Show(owner, item); }))
                 .AutomationName($"Inspect {item.Name} window").Width(30).Height(30).Padding(0).CornerRadius(7)
-                .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Inspect window and live events"))
+                .ToolTip("Inspect window and live events")
                 .IsVisible(item.WindowHandle != 0),
             VStack(0).Flex(grow: 1, basis: 0),
             GlassButton(Button(FluentGlyph("\uE8A7"),
                 () => message.Set(ApplicationWindowSwitcher.SwitchTo(item))), true)
                 .AutomationName($"Switch to {item.Name}").Width(30).Height(30).Padding(0).CornerRadius(7)
                 .HAlign(HorizontalAlignment.Right)
-                .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, $"Switch to {item.Name}"))
+                .ToolTip($"Switch to {item.Name}")
                 .IsVisible(item.WindowHandle != 0)),
             terminate ? Disclosure("Executable location", ReadOnlyText(item.Path.Length > 0 ? item.Path : "Access unavailable", "Executable location")) : Text("").IsVisible(false),
             ActionButton("Close application", () => pending.Set(item)).IsVisible(terminate)

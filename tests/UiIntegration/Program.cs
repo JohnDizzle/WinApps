@@ -344,6 +344,24 @@ public sealed partial class ChecksApplication : Application
             Console.WriteLine("Passed native window placement checks.");
             foreach (var requestedTheme in new[] { ElementTheme.Light, ElementTheme.Dark })
             {
+                var miniInvocations = 0;
+                var miniTree = WinAppsShell.MiniModeButton(() => miniInvocations++).RequestedTheme(requestedTheme);
+                var miniNative = (Button)reconciler.Mount(miniTree, () => { })!;
+                miniNative.Measure(new Windows.Foundation.Size(44, 40));
+                miniNative.Arrange(new Windows.Foundation.Rect(0, 0, 44, 40));
+                miniNative.UpdateLayout();
+                var miniGlyph = Descendants(miniNative).OfType<TextBlock>().Single();
+                Check(miniGlyph.Text == "\uE73F" && miniGlyph.DesiredSize.Width > 0 && miniGlyph.DesiredSize.Height > 0,
+                    "Mini Mode must render a nonempty font glyph in each theme instead of relying on runtime path conversion.");
+                var nextMiniTree = WinAppsShell.MiniModeButton(() => miniInvocations += 10).RequestedTheme(requestedTheme);
+                var nextMiniNative = (Button)reconciler.Reconcile(miniTree, nextMiniTree, miniNative, () => { })!;
+                Check(ReferenceEquals(miniNative, nextMiniNative) && Descendants(nextMiniNative).OfType<TextBlock>().Single().Text == "\uE73F" &&
+                    ToolTipService.GetToolTip(nextMiniNative) as string == "Open Mini Mode",
+                    "The Mini Mode glyph and tooltip must survive reconciliation.");
+                ((Microsoft.UI.Xaml.Automation.Provider.IInvokeProvider)new Microsoft.UI.Xaml.Automation.Peers.ButtonAutomationPeer(nextMiniNative)
+                    .GetPattern(Microsoft.UI.Xaml.Automation.Peers.PatternInterface.Invoke)).Invoke();
+                await new UiDelay(50);
+                Check(miniInvocations == 10, "Reconciled Mini Mode buttons must invoke the current action exactly once.");
                 var settings = SettingsFlyout.Create(requestedTheme, requestedTheme == ElementTheme.Dark,
                     BackdropKind.Mica, () => { }, _ => { });
                 var settingsPanel = (StackPanel)((ScrollViewer)settings.Content).Content;
@@ -778,28 +796,23 @@ public sealed partial class ChecksApplication : Application
                 Environment.ExitCode = 0;
                 return;
             }
-            Check(ApplicationManagementPanel.ManagementUri(app).OriginalString == "ms-settings:appsfeatures-app?fixture-family",
-                "App management must target the package family, not the AUMID.");
-            Check(ApplicationManagementPanel.ManagementUri(app with { FamilyName = "48996JohnM.Doyle.WebDive_jw9ac53qrz6qt" }).OriginalString
-                == "ms-settings:appsfeatures-app?48996JohnM.Doyle.WebDive_jw9ac53qrz6qt",
-                "Web Dive Advanced options must receive its registered package family.");
-            Check(ApplicationManagementPanel.ManagementUri(app with { FamilyName = "", Source = "Desktop · Start Menu" }).OriginalString
-                == "ms-settings:appsfeatures", "Shortcuts without a package identity must use the Installed apps fallback.");
-            var launchedUris = new List<string>();
-            Check(ApplicationManagementPanel.OpenManagementAsync(app, uri =>
+            foreach (var targetApp in new[] { app, app with { FamilyName = "48996JohnM.Doyle.WebDive_jw9ac53qrz6qt" },
+                app with { FamilyName = "", Source = "Desktop · Start Menu" } })
             {
-                launchedUris.Add(uri.OriginalString);
-                return Task.FromResult(launchedUris.Count == 2);
-            }).GetAwaiter().GetResult() && launchedUris.SequenceEqual(new[] {
-                "ms-settings:appsfeatures-app?fixture-family", "ms-settings:appsfeatures" }),
-                "A rejected direct launch must fall back to Installed apps.");
-            launchedUris.Clear();
-            Check(ApplicationManagementPanel.OpenManagementAsync(app, uri =>
-            {
-                launchedUris.Add(uri.OriginalString);
-                return Task.FromResult(true);
-            }).GetAwaiter().GetResult() && launchedUris.Count == 1,
-                "An accepted direct launch must not also open the fallback.");
+                Check(ApplicationManagementPanel.ManagementUri(targetApp).OriginalString == "ms-settings:appsfeatures",
+                    "Management must open Installed apps without invoking the caller-specific advanced settings route.");
+                var launchedUris = new List<string>();
+                foreach (var accepted in new[] { true, false })
+                {
+                    launchedUris.Clear();
+                    Check(ApplicationManagementPanel.OpenManagementAsync(targetApp, uri =>
+                    {
+                        launchedUris.Add(uri.OriginalString);
+                        return Task.FromResult(accepted);
+                    }).GetAwaiter().GetResult() == accepted && launchedUris.SequenceEqual(new[] { "ms-settings:appsfeatures" }),
+                        "Management must report launch acceptance and never retry with the unsafe per-app URI.");
+                }
+            }
             var motionPanel = new StackPanel();
             var railSlot = (StackPanel)reconciler.Mount(BrowserUi.Slot("app-files", TextBlock("Files")), () => { })!;
             Check(railSlot.ChildrenTransitions is null || railSlot.ChildrenTransitions.Count == 0,

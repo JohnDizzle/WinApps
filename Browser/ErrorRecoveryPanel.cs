@@ -40,8 +40,7 @@ internal sealed class ErrorRecoveryPanel : Component<ErrorRecoveryPanelProps>
                 Text("A display problem interrupted this area. Try loading it again, or return to your application list."),
                 VStack(8,
                     ActionButton("Try again", Props.Retry),
-                    ActionButton("Restart WinApps", Restart).Set(control =>
-                        Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Restart WinApps. Unsaved edits will be cleared.")),
+                    ActionButton("Restart WinApps", Restart).ToolTip("Restart WinApps. Unsaved edits will be cleared."),
                     Slot("back-action", Props.Back is { } back ? ActionButton("Open Apps List", back) : Text(""))),
                 TextBlock(message.Value).TextWrapping().Foreground(Theme.SecondaryText),
                 Disclosure("Technical details", VStack(10,

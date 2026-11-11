@@ -186,14 +186,14 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                     Text($"{files.Length} files · {files.Sum(item => item.Bytes) / 1048576d:N2} MiB listed"),
                     FlexRow(TextBlock("File").SemiBold().Flex(grow: 1, basis: 0),
                         TextBlock("Size · Type · Modified").SemiBold().Width(260).Margin(left: 12).Flex(shrink: 0),
-                        TextBlock("Open").Width(40).Margin(left: 8).Flex(shrink: 0)).Padding(8).IsVisible(!Props.Compact),
-                    VStack(6, files.Select(item => ((Props.Compact ? FlexColumn() : FlexRow()) with { Children = new Element[] {
+                        TextBlock("Open").Width(40).Margin(left: 8).Flex(shrink: 0)).FlexPadding(8).IsVisible(!Props.Compact),
+                    VStack(6, files.Select(item => Border(((Props.Compact ? FlexColumn() : FlexRow()) with { Children = new Element[] {
                         FilePreviewButton(item).Flex(grow: 1, basis: 0),
                         VStack(2, Text($"{item.Bytes:N0} bytes · {item.Kind}"),
                             TextBlock(item.LastWriteUtc.ToLocalTime().ToString("g")).FontSize(12).Foreground(Theme.SecondaryText))
                             .Width(Props.Compact ? double.NaN : 260).Margin(left: Props.Compact ? 0 : 12).Flex(shrink: 0),
                         OpenFileButton(item).Margin(left: 8).Flex(shrink: 0)
-                    } }).HAlign(HorizontalAlignment.Stretch).Padding(8).Background(Theme.LayerFill).CornerRadius(8).WithKey(item.FullPath)).ToArray()),
+                    } }).HAlign(HorizontalAlignment.Stretch)).Padding(8).Background(Theme.LayerFill).CornerRadius(8).WithKey(item.FullPath)).ToArray()),
                     VStack(4, (inventory?.Notices ?? Array.Empty<string>()).Select((notice, index) => Text(notice).WithKey($"notice-{index}")).ToArray()),
                     Slot("file-details", file is not null && file.Area == area ? Section("File details", Text(file.FullPath),
                         Text($"Modified: {file.LastWriteUtc.ToLocalTime():g} · {file.Bytes:N0} bytes · {file.Kind}"),
@@ -238,11 +238,11 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                     } },
                     FlexRow(ScrollView(HStack(8, (selected?.ConsolePath is not null ? new[] { "Overview" } : new[] { "Overview", "Package", "Storage", "Settings", "Registry", "LocalState" }).Select(tab =>
                         GlassButton(Button(tab, () => SelectView(tab)), view == tab)
+                            .ItemStatus(view == tab ? "Selected" : "")
                             .Set(control =>
                             {
                                 BrowserMotion.Enable(control);
                                 BrowserMotion.CardSelectionFeedback(control, view == tab);
-                                Microsoft.UI.Xaml.Automation.AutomationProperties.SetItemStatus(control, view == tab ? "Selected" : "");
                             }).CornerRadius(9).Padding(10)
                             .AutomationName($"View {tab}").IsEnabled(selected is not null && !Props.Loading).WithKey(tab)).ToArray()))
                         .Set(control =>
@@ -255,10 +255,10 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
                         }).CornerRadius(1).MinWidth(0).Margin(right: 12).Flex(grow: 1, basis: 0),
                     Border(HStack(8,
                     ActionButton("Reload resources", ReloadResources).Padding(10)
-                        .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, UiResources.FilePath)),
+                        .ToolTip(UiResources.FilePath),
                     Button(FluentGlyph("\uE74A"), BackToTop)
                         .AutomationName("Back to top").Padding(10).CornerRadius(9)
-                        .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Back to top"))
+                        .ToolTip("Back to top")
                         .Background(Theme.LayerFill).WithBorder(Theme.CardStroke)))
                         .Padding(4).VAlign(VerticalAlignment.Top).Flex(shrink: 0)),
                     Component<TransientActionNotice, TransientActionNoticeProps>(new(resourceStatus.Value, resourceVersion.Value)).WithKey("resource-notice")
@@ -277,9 +277,9 @@ internal sealed class ApplicationDetailPane : Component<ApplicationDetailPanePro
     private static void OpenDocumentation(string url) =>
         Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
 
-    private static Element DetailRow(string label, string value) => FlexRow(
+    private static Element DetailRow(string label, string value) => Border(FlexRow(
         TextBlock(label).Foreground(Theme.SecondaryText).Width(150).Flex(shrink: 0),
         TextBlock(string.IsNullOrWhiteSpace(value) || value == "Unknown" ? "Not available" : value)
-            .TextWrapping().Set(control => control.IsTextSelectionEnabled = true).Margin(left: 16).Flex(grow: 1, basis: 0))
+            .TextWrapping().Set(control => control.IsTextSelectionEnabled = true).Margin(left: 16).Flex(grow: 1, basis: 0)))
         .Padding(10).Background(Theme.LayerFill).CornerRadius(6);
 }

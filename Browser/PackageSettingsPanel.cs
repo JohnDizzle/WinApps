@@ -38,7 +38,7 @@ internal sealed class PackageSettingsPanel : Component<PackageSettingsPanelProps
                 Disclosure(group.Key, VStack(4, new Element[] {
                     FlexRow(TextBlock("Key").SemiBold().Width(220).Flex(shrink: 0),
                         TextBlock("Value").SemiBold().Margin(left: 16).Flex(grow: 1, basis: 0),
-                        TextBlock("Action").Width(90).Margin(left: 12).Flex(shrink: 0)).Padding(10)
+                        TextBlock("Action").Width(90).Margin(left: 12).Flex(shrink: 0)).FlexPadding(10)
                     }.Concat(group.Select(item =>
                     Component<SettingEditor, SettingEditorProps>(new(Props.FamilyName, item, current!, Props.Disabled || loading.Value))
                         .WithKey(System.Text.Json.JsonSerializer.Serialize(item.Location, WinApps.Services.Storage.AppJsonContext.Default.SettingLocation) + item.Name))).ToArray()), true)

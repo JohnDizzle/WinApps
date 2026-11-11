@@ -149,9 +149,9 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                 () => (filtering ? Props.OnSelect : Props.OnSuggestionSelect ?? Props.OnSelect)(app)))
                 .Width(144).Height(64).Padding(8).CornerRadius(10).IsEnabled(!busy)
                 .AutomationName($"View {app.Name}")
+                .ToolTip($"Open {app.Name} overview")
                 .Set(control =>
                 {
-                    Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, $"Open {app.Name} overview");
                     control.ContextFlyout = CreateApplicationContextFlyout(app, Report, LaunchFromMenu,
                         () => (filtering ? Props.OnSelect : Props.OnSuggestionSelect ?? Props.OnSelect)(app));
                 })
@@ -199,7 +199,7 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
             FlexRow(
                 Button(FluentGlyph("\uE73E", 12), Unselect)
                     .AutomationName($"Unselect {app.Name}").IsEnabled(!busy)
-                    .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Clear selection"))
+                    .ToolTip("Clear selection")
                     .IsVisible(app.FullName == selected?.FullName)
                     .MinWidth(0).Width(24).Padding(0).Margin(right: 8).Flex(shrink: 0),
                 AppIcon(app).Margin(right: 12).Flex(shrink: 0),
@@ -217,7 +217,7 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
         ).HAlign(HorizontalAlignment.Stretch).Padding(8))
             .Background(app.FullName == selected?.FullName ? Theme.Ref("ControlFillColorSecondaryBrush") : Theme.Ref("ControlFillColorTransparentBrush"))
             .WithBorder(app.FullName == selected?.FullName ? Theme.Ref("ControlStrongStrokeColorDefaultBrush") : Theme.Ref("ControlFillColorTransparentBrush"))
-            .Set(control => control.BorderThickness = new Thickness(1.2))
+            .BorderThickness(1.2)
             .CornerRadius(12).Margin(left: 4, top: 2, right: 8, bottom: 2).HAlign(HorizontalAlignment.Stretch)
             .Set(control => control.ContextFlyout = CreateApplicationContextFlyout(app, Report, LaunchFromMenu))
             .WithKey(app.FullName)) with { SelectedIndex = selectedIndex })
@@ -300,12 +300,12 @@ internal sealed class ApplicationRail : Component<ApplicationRailProps>
                         GlassButton(Button(FluentGlyph("\uE72C", 16), Scan))
                             .Width(32).Height(32).Padding(6).CornerRadius(8)
                             .AutomationName(busy ? "Refreshing applications" : "Refresh applications").IsEnabled(!busy)
-                            .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Refresh applications")),
+                            .ToolTip("Refresh applications"),
                         GlassButton(Button(FluentGlyph("\uE711", 16), () => { }))
                             .WithKey("clear-application-selection").Width(32).Height(32).Padding(6).CornerRadius(8)
                             .AutomationName("Clear selection").IsEnabled(!busy).IsVisible(selected is not null)
                             .Set(AttachClearButton)
-                            .Set(control => Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, "Clear selection")))
+                            .ToolTip("Clear selection"))
                         .Margin(left: 8).Flex(shrink: 0)
                 ).Flex(shrink: 0),
                 TextBlock($"{apps.Length} apps in your library").Foreground(Theme.SecondaryText).Flex(shrink: 0),

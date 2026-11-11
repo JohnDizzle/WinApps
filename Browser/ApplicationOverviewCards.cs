@@ -17,15 +17,6 @@ internal sealed class ApplicationOverviewCards : Component<ApplicationOverviewCa
     private readonly Dictionary<string, FrameworkElement> _panels = new();
     private readonly Dictionary<string, Microsoft.UI.Xaml.Controls.Button> _buttons = new();
     private bool _selecting;
-    private sealed class InputAction { public Action? Select; }
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Microsoft.UI.Xaml.Controls.Button, InputAction> Inputs = new();
-    private void AttachInput(Microsoft.UI.Xaml.Controls.Button button, string section)
-    {
-        if (Inputs.TryGetValue(button, out var input)) { input.Select = () => SelectSection(section); return; }
-        input = new InputAction { Select = () => SelectSection(section) };
-        Inputs.Add(button, input);
-        button.Click += (_, _) => input.Select?.Invoke();
-    }
 
     private void SelectSection(string section)
     {
@@ -63,17 +54,16 @@ internal sealed class ApplicationOverviewCards : Component<ApplicationOverviewCa
         var package = Props.Package;
         var packaged = !string.IsNullOrWhiteSpace(app.FamilyName);
         Element Card(string title, string glyph, string summary, string subtitle) => GlassButton(Button(HStack(8,
-            FluentGlyph(glyph, 16), TextBlock(title).SemiBold()), () => { }))
+            FluentGlyph(glyph, 16), TextBlock(title).SemiBold()), () => SelectSection(title)))
             .Padding(10).CornerRadius(9).Height(44).MinWidth(0).HAlign(HorizontalAlignment.Stretch)
+            .ToolTip($"{summary}\n{subtitle}")
+            .ItemStatus(_section == title ? "Selected" : "")
             .Set(control =>
             {
                 _buttons[title] = control;
-                AttachInput(control, title);
                 control.HorizontalContentAlignment = HorizontalAlignment.Center;
-                Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(control, $"{summary}\n{subtitle}");
                 control.VerticalContentAlignment = VerticalAlignment.Center;
                 BrowserMotion.CardSelectionFeedback(control, _section == title);
-                Microsoft.UI.Xaml.Automation.AutomationProperties.SetItemStatus(control, _section == title ? "Selected" : "");
             })
             .Margin(right: title == "Files" ? 0 : 8).Flex(grow: 1, shrink: 1, basis: 0)
             .AutomationName($"Show {title} details").WithKey(title);
@@ -89,10 +79,8 @@ internal sealed class ApplicationOverviewCards : Component<ApplicationOverviewCa
             VStack(0, new[] { "Application", "Package", "Files" }.Select(name =>
                 VStack(0, Component<ApplicationOverviewDetails, ApplicationOverviewDetailsProps>(new(Props, name))
                     .WithKey($"details-{app.FullName}-{name}"))
-                    .Set(control =>
-                    {
-                        _panels[name] = control;
-                        control.Visibility = _section == name ? Visibility.Visible : Visibility.Collapsed;
-                    }).WithKey($"panel-{name}")).ToArray()).WithKey("overview-details"));
+                    .IsVisible(_section == name)
+                    .Set(control => _panels[name] = control)
+                    .WithKey($"panel-{name}")).ToArray()).WithKey("overview-details"));
     }
 }
